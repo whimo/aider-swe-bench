@@ -9,12 +9,12 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from swebench.metrics.report import get_model_report
+from swebench import get_model_report
 
 from dump import dump  # noqa: F401
 from tests import remove_patches_to_tests, run_tests
 from utils import (
-    FULL_DATASET_FNAME,
+    LITE_DATASET_FNAME,
     choose_predictions,
     get_dataset,
     get_devin_instance_ids,
@@ -22,9 +22,12 @@ from utils import (
     old,
 )
 
+DATASET_FNAME = LITE_DATASET_FNAME
+
 JUST_DEVIN_570 = False
 
 NUM_EVAL_PROCS = 5
+
 
 def run_evals(swe_bench_tasks, log_dir, predictions_jsonl):
     base = os.getcwd()
@@ -33,7 +36,6 @@ def run_evals(swe_bench_tasks, log_dir, predictions_jsonl):
 python {base}/SWE-bench-docker/run_evaluation.py
     --log_dir {base}/{log_dir}
     --swe_bench_tasks {base}/{swe_bench_tasks}
-    --skip_existing
     --predictions_path {predictions_jsonl}
     --num_processes {NUM_EVAL_PROCS}
 """
@@ -45,10 +47,17 @@ python {base}/SWE-bench-docker/run_evaluation.py
 
 def get_report(swe_bench_tasks, log_dir, predictions_jsonl, model_name_or_path):
     try:
-        report = get_model_report(
+        base = os.getcwd()
+        print(
             model_name_or_path,
             predictions_jsonl,
             swe_bench_tasks,
+            log_dir,
+        )
+        report = get_model_report(
+            model_name_or_path,
+            predictions_jsonl,
+            f"{base}/{swe_bench_tasks}",
             log_dir,
             verbose=True,
         )
@@ -135,10 +144,10 @@ def run_evals_on_dname(dname):
     any_need_evals = any("resolved" not in pred for pred in predictions.values())
     any_need_evals = True
     if any_need_evals:
-        run_evals(FULL_DATASET_FNAME, str(log_dir), predictions_jsonl)
+        run_evals(DATASET_FNAME, str(log_dir), predictions_jsonl)
 
         model_name_or_path = list(predictions.values())[0]["model_name_or_path"]
-        report = get_report(FULL_DATASET_FNAME, log_dir, predictions_jsonl, model_name_or_path)
+        report = get_report(DATASET_FNAME, log_dir, predictions_jsonl, model_name_or_path)
         predictions = update_pred_json(predictions, report)
 
     return predictions_jsonl, log_dir
@@ -205,7 +214,7 @@ def main():
     dump(len(predictions))
 
     predictions_jsonl, log_dir = combine_jsonl_logs(predictions, model_name_or_path)
-    report = get_report(FULL_DATASET_FNAME, log_dir, predictions_jsonl, model_name_or_path)
+    report = get_report(DATASET_FNAME, log_dir, predictions_jsonl, model_name_or_path)
     results_json = Path("predictions") / model_name_or_path / "results.json"
     results_json.write_text(json.dumps(report, indent=4))
 
@@ -262,7 +271,7 @@ def main():
         if JUST_DEVIN_570:
             num_instances = len(get_devin_instance_ids())
         else:
-            num_instances = len(json.load(open(FULL_DATASET_FNAME)))
+            num_instances = len(json.load(open(DATASET_FNAME)))
 
         expected_cost = num_instances * avg_cost
         print(f"expected_cost: ${expected_cost:.2f}")

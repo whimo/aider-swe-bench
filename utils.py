@@ -7,6 +7,8 @@ from datasets import load_dataset
 
 from dump import dump  # noqa: F401
 
+SPLIT = "dev"
+
 FULL_DATASET = "princeton-nlp/SWE-bench"
 FULL_DATASET_FNAME = FULL_DATASET.replace("/", "--") + ".json"
 
@@ -48,7 +50,7 @@ def get_dataset(dataset, fname):
     else:
         dump(dataset)
         dataset = load_dataset(dataset)
-        dataset = dataset["test"]
+        dataset = dataset[SPLIT]
         dump_dataset(dataset, fname)
 
     res = dict()

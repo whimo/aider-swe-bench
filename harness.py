@@ -8,7 +8,19 @@ import tempfile
 from pathlib import Path
 
 import lox
-from aider.coders import Coder
+
+USE_ORIG_AIDER = False
+
+if USE_ORIG_AIDER:
+    from aider.coders import Coder
+
+    construct_coder = Coder.create
+
+else:
+    from aider.coders import MotleyCrewCoder
+
+    construct_coder = MotleyCrewCoder
+
 from aider.io import InputOutput
 from aider.models import Model
 
@@ -51,8 +63,8 @@ def checkout_repo(git_tempdir, entry):
     Clone the SWE Bench entry's git `repo` into `dname` at the `base_commit`.
     Make a tempdir if no `dname` provided.
     """
-    github_url = "https://github.com/"
-    repo_url = github_url + entry["repo"]
+    github_url = "git@github.com:"
+    repo_url = github_url + entry["repo"] + ".git"
     commit = entry["base_commit"]
 
     print(repo_url, commit)
@@ -150,7 +162,7 @@ def get_coder(model, git_dname, chat_history_file, test_cmd, temperature, oracle
 
     dump(git_dname)
 
-    coder = Coder.create(
+    coder = construct_coder(
         main_model=model,
         io=io,
         git_dname=git_dname,
@@ -160,7 +172,7 @@ def get_coder(model, git_dname, chat_history_file, test_cmd, temperature, oracle
         fnames=oracle_files,
         auto_test=True,  # Automatically run the test_cmd after making changes
         test_cmd=test_cmd,
-        # verbose=True,
+        verbose=True,
         # edit_format="udiff",
     )
     coder.temperature = temperature
@@ -253,16 +265,22 @@ Propose changes to update the repo to fix the problem below.
 #"""
                 message += problem_statement
                 try:
+                    print(">>>>>>>> Running coder.run... <<<<<<<<")
                     coder.run(message)
+                    print(">>>>>>>> Finished running coder.run <<<<<<<<")
                 except Exception as coder_err:
                     # swallow any exceptions during benchmarking
                     dump(coder_err)
+                    raise
+                    print(">>>>>>>> Exception during coder.run ^ <<<<<<<<")
                     continue
 
                 # Take note of which files aider added to the chat for stats later
                 added_files = coder.get_inchat_relative_files()
 
                 if not added_files:
+                    print(">>>>>>>> No files named in the chat <<<<<<<<")
+                    print(">>>>>>>> Running coder.run again... <<<<<<<<")
                     message = """You haven't named any files in this repo.
 Remember, this repo is checked out at quite an old commit.
 So the file layout and contents may be unfamiliar.
@@ -270,6 +288,7 @@ So the file layout and contents may be unfamiliar.
 Tell me: which 3-5 files from this repo should I look at to solve the problem?
 """
                     coder.run(message)
+                    print(">>>>>>>> Finished running coder.run again <<<<<<<<")
 
                 dump(instance_id)
                 dump(gold_files)
@@ -279,7 +298,9 @@ Tell me: which 3-5 files from this repo should I look at to solve the problem?
                 cost += coder.total_cost
 
                 # Get the diff between the current state and the original commit
+                print(">>>>>>>> Start diff_versus_commit <<<<<<<<")
                 model_patch = diff_versus_commit(git_tempdir, base_commit)
+                print(">>>>>>>> Finished diff_versus_commit <<<<<<<<")
                 dump(model_patch)
 
             # Record the results for the logs
@@ -302,6 +323,7 @@ Tell me: which 3-5 files from this repo should I look at to solve the problem?
             result["try"] = attempt  # `try` is a python keyword
             results.append(result)
 
+            print(">>>>>>>> Result <<<<<<<<")
             dump(result)
 
             # Did we get a successful edit, lint and test? If so, we found a plausible solution!
@@ -348,7 +370,14 @@ Tell me: which 3-5 files from this repo should I look at to solve the problem?
 
 
 def process_instances(
-    prefix, dataset, models, num_tries, temperature, threads, prior_dnames, just_devin_570
+    prefix,
+    dataset,
+    models,
+    num_tries,
+    temperature,
+    threads,
+    prior_dnames,
+    just_devin_570,
 ):
     """
     prefix - Prefix used in front of the dirname in predictions/.
@@ -447,7 +476,7 @@ def main():
     # prefix = "lite025"
     # prefix = "full-"
     # prefix = "full025-"
-    prefix = "sysexamples"
+    prefix = "motley1"
 
     #
     # Configure 1 or more models to use to try and find plausible solutions
@@ -478,7 +507,7 @@ def main():
         dataset = dict((inst, entry) for inst, entry in dataset.items() if inst in devin_insts)
 
     # How many threads to use for attempting instances in parallel
-    threads = 10
+    threads = 1
 
     # Any predictions/ dirs provided on the command line are treated
     # as earlier, higher priority runs.  If a plausible solution was
@@ -487,7 +516,14 @@ def main():
     prior_dnames = sys.argv[1:]
 
     process_instances(
-        prefix, dataset, models, num_tries, temperature, threads, prior_dnames, just_devin_570
+        prefix,
+        dataset,
+        models,
+        num_tries,
+        temperature,
+        threads,
+        prior_dnames,
+        just_devin_570,
     )
 
 
