@@ -22,7 +22,7 @@ else:
     construct_coder = MotleyCrewCoder
 
 from aider.io import InputOutput
-from aider.models import Model
+from aider.models import Model, register_litellm_models
 
 from dump import dump
 from tests import run_tests
@@ -154,6 +154,7 @@ def get_coder(model, git_dname, chat_history_file, test_cmd, temperature, oracle
         oracle_files = [Path(git_dname) / fname for fname in oracle_files]
 
     model = Model(model)
+
     io = InputOutput(
         yes=True,  # Say yes to every suggestion aider makes
         chat_history_file=chat_history_file,  # Log the chat here
@@ -172,8 +173,9 @@ def get_coder(model, git_dname, chat_history_file, test_cmd, temperature, oracle
         fnames=oracle_files,
         auto_test=True,  # Automatically run the test_cmd after making changes
         test_cmd=test_cmd,
-        verbose=True,
+        # verbose=True,
         # edit_format="udiff",
+        max_chat_history_tokens=8*1024,
     )
     coder.temperature = temperature
 
@@ -470,6 +472,11 @@ def process_instances(
 
 
 def main():
+    models_json = Path(".aider.models.json")
+    if models_json.exists():
+        print(f"Registering {models_json}")
+        register_litellm_models([str(models_json)])
+
     #
     # Set the prefix to use in front of the predictions/ subdir name.
     #

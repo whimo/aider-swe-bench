@@ -9,7 +9,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from swebench import get_model_report
+from swebench.metrics.report import get_model_report
 
 from dump import dump  # noqa: F401
 from tests import remove_patches_to_tests, run_tests
@@ -22,9 +22,10 @@ from utils import (
     old,
 )
 
-DATASET_FNAME = LITE_DATASET_FNAME
-
 JUST_DEVIN_570 = False
+DATASET_FNAME = LITE_DATASET_FNAME
+using_dataset = "lite"
+
 
 NUM_EVAL_PROCS = 5
 
@@ -36,6 +37,7 @@ def run_evals(swe_bench_tasks, log_dir, predictions_jsonl):
 python {base}/SWE-bench-docker/run_evaluation.py
     --log_dir {base}/{log_dir}
     --swe_bench_tasks {base}/{swe_bench_tasks}
+    --skip_existing
     --predictions_path {predictions_jsonl}
     --num_processes {NUM_EVAL_PROCS}
 """
@@ -132,7 +134,7 @@ def preds_to_jsonl(dname, predictions):
 def run_evals_on_dname(dname):
     dname = Path(dname)
 
-    predictions = load_predictions([dname], devin_only=JUST_DEVIN_570)
+    predictions = load_predictions([dname], devin_only=(using_dataset == "devin"))
 
     predictions_jsonl = preds_to_jsonl(dname, predictions)
     dump(predictions_jsonl)
@@ -205,7 +207,7 @@ def main():
 
     # Choose the 1st plausible pred or use the fallback logic for least bad pred
     predictions = choose_predictions(
-        dnames, model_name_or_path, copy_md=True, devin_only=JUST_DEVIN_570
+        dnames, model_name_or_path, copy_md=True, devin_only=(using_dataset == "devin")
     )
     if not predictions:
         print("No predictions")
@@ -268,8 +270,10 @@ def main():
         print(f"spent: ${spent:.2f}")
 
         # If configured to assume the Devin 570 need to be processed
-        if JUST_DEVIN_570:
+        if using_dataset == "devin":
             num_instances = len(get_devin_instance_ids())
+        elif using_dataset == "lite":
+            num_instances = 300
         else:
             num_instances = len(json.load(open(DATASET_FNAME)))
 
