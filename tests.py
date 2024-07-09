@@ -124,7 +124,7 @@ def run_tests(entry, model_patch=None, use_test_patch=False, model_name_or_path=
     }
 
     namespace = "aorwall"
-    with tempfile.TemporaryDirectory(dir="/mnt/aider") as log_dir:
+    with tempfile.TemporaryDirectory() as log_dir:  # dir="/mnt/aider"
         timeout = 60
         log_suffix = ""
 

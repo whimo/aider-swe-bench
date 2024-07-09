@@ -48,7 +48,8 @@ python {base}/SWE-bench-docker/run_evaluation.py
 
 
 def get_report(swe_bench_tasks, log_dir, predictions_jsonl, model_name_or_path):
-    try:
+    if True:
+        # try:
         base = os.getcwd()
         print(
             model_name_or_path,
@@ -63,8 +64,8 @@ def get_report(swe_bench_tasks, log_dir, predictions_jsonl, model_name_or_path):
             log_dir,
             verbose=True,
         )
-    except KeyError:
-        report = dict()
+    # except KeyError:
+    #     report = dict()
 
     # for k, v in report.items():
     #    print(f"- {k}: {len(v)}")
@@ -187,7 +188,8 @@ def combine_jsonl_logs(predictions, model_name_or_path):
 def main():
     # Run with a set of prediction directories, in order of priority.
     # Plausible solution found in the earliest directory will be selected.
-    dnames = sys.argv[1:]
+    dnames = ["C:\\Users\\Egor\\Dropbox\\Code\\aider-swe-bench\\predictions\\motley1--gpt-4o"]
+    # dnames = sys.argv[1:]
 
     # Make sure evals have been completed on all instances in all supplied
     # predictions dirs.
@@ -297,7 +299,7 @@ def main():
     timeline = ""
     for instance_id, data in predictions.items():
         gold_files = set(data.get("gold_files", []))
-        added_files = set(data.get("added_files", []))
+        added_files = set([r.replace("\\", "/") for r in data.get("added_files", [])])
 
         resolved = data.get("resolved")
         added_gold = (added_files.intersection(gold_files) == gold_files) and gold_files

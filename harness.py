@@ -24,6 +24,8 @@ else:
 from aider.io import InputOutput
 from aider.models import Model, register_litellm_models
 
+from file_finder import entry_point
+
 from dump import dump
 from tests import run_tests
 from utils import get_full_dataset  # noqa: F401
@@ -58,13 +60,18 @@ def files_in_patch(patch):
     return files
 
 
-def checkout_repo(git_tempdir, entry):
+def checkout_repo(git_tempdir, entry, how="https"):
     """
     Clone the SWE Bench entry's git `repo` into `dname` at the `base_commit`.
     Make a tempdir if no `dname` provided.
     """
-    github_url = "git@github.com:"
-    repo_url = github_url + entry["repo"] + ".git"
+    if how == "https":
+        github_url = "https://github.com/"
+        repo_url = github_url + entry["repo"]
+    else:  # ssh
+        github_url = "git@github.com:"
+        repo_url = github_url + entry["repo"] + ".git"
+
     commit = entry["base_commit"]
 
     print(repo_url, commit)
@@ -175,7 +182,7 @@ def get_coder(model, git_dname, chat_history_file, test_cmd, temperature, oracle
         test_cmd=test_cmd,
         # verbose=True,
         # edit_format="udiff",
-        max_chat_history_tokens=8*1024,
+        max_chat_history_tokens=8 * 1024,
     )
     coder.temperature = temperature
 
@@ -232,7 +239,7 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
         for model in models:
             dump(attempt, model)
 
-            with tempfile.TemporaryDirectory() as git_tempdir:
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as git_tempdir:
                 dump(git_tempdir)
                 checkout_repo(git_tempdir, entry)
 
@@ -248,6 +255,8 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
                     temperature,
                     oracle_files,
                 )
+
+                entry_point(problem_statement, coder.repo_map)
 
                 dump(instance_id)
                 dump(gold_files)
@@ -428,14 +437,14 @@ def process_instances(
     remaining_instances -= plausible_instances
 
     remaining_instances = list(remaining_instances)
-    random.shuffle(remaining_instances)
+    # random.shuffle(remaining_instances)
 
     dump(sorted(remaining_instances))
     dump(len(remaining_instances))
 
-    print()
-    print("press enter...")
-    input()
+    # print()
+    # print("press enter...")
+    # input()
 
     if not CHAT_LOGS_DNAME.exists():
         CHAT_LOGS_DNAME.mkdir()
@@ -451,9 +460,9 @@ def process_instances(
         process_one_instance_func = process_one_instance
 
     for instance_id in remaining_instances:
-        if instance_id in done_instances:
-            print("skipping", instance_id)
-            continue
+        # if instance_id in done_instances:
+        #     print("skipping", instance_id)
+        #     continue
 
         process_one_instance_func(
             dataset[instance_id],
@@ -483,7 +492,7 @@ def main():
     # prefix = "lite025"
     # prefix = "full-"
     # prefix = "full025-"
-    prefix = "motley1"
+    prefix = "locate_file"
 
     #
     # Configure 1 or more models to use to try and find plausible solutions
@@ -521,6 +530,14 @@ def main():
     # found for an instance already, we don't need to keep looking in
     # this run.
     prior_dnames = sys.argv[1:]
+
+    # Just use this one instance for testing, for now
+
+    dataset = dict(
+        (inst, entry)
+        for inst, entry in dataset.items()
+        if inst in ["pvlib__pvlib-python-1606"]  # "pvlib__pvlib-python-1707"
+    )
 
     process_instances(
         prefix,
