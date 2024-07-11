@@ -212,6 +212,7 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
     dump(instance_id)
     print("=" * 60)
     problem_statement = entry["problem_statement"]
+
     print(problem_statement)
 
     ###
@@ -256,8 +257,19 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
                     oracle_files,
                 )
 
-                entry_point(problem_statement, coder.repo_map)
+                def result_writer(result: str):
+                    out_fname = out_dname / (instance_id + "_file.json")
+                    out_fname.write_text(json.dumps(result, indent=4))
 
+                entry_point(
+                    problem_statement,
+                    coder.repo_map,
+                    coder.main_model.name,
+                    gold_files,
+                    instance_id,
+                    result_writer,
+                )
+                continue
                 dump(instance_id)
                 dump(gold_files)
 
@@ -459,7 +471,7 @@ def process_instances(
     else:
         process_one_instance_func = process_one_instance
 
-    for instance_id in remaining_instances:
+    for instance_id in sorted(remaining_instances):
         # if instance_id in done_instances:
         #     print("skipping", instance_id)
         #     continue
@@ -533,11 +545,14 @@ def main():
 
     # Just use this one instance for testing, for now
 
-    dataset = dict(
-        (inst, entry)
-        for inst, entry in dataset.items()
-        if inst in ["pvlib__pvlib-python-1606"]  # "pvlib__pvlib-python-1707"
-    )
+    # bad_ids = [
+    #     "pylint-dev__astroid-1333",
+    #     "sqlfluff__sqlfluff-1517",
+    #     "sqlfluff__sqlfluff-1625",
+    #     "sqlfluff__sqlfluff-1733",
+    #     "sqlfluff__sqlfluff-1763",
+    # ]
+    # dataset = dict((inst, entry) for inst, entry in dataset.items() if inst in bad_ids)
 
     process_instances(
         prefix,
