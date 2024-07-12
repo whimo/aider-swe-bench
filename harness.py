@@ -543,7 +543,6 @@ def main():
     # this run.
     prior_dnames = sys.argv[1:]
 
-    # Just use this one instance for testing, for now
 
     # bad_ids = [
     #     "pylint-dev__astroid-1333",
