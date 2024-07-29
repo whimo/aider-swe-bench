@@ -257,19 +257,27 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
                     oracle_files,
                 )
 
-                def result_writer(result: str):
+                def result_writer(output: dict):
+                    output["gold_files"] = gold_files
+                    output["instance_id"] = instance_id
+                    print(output)
+                    if not set(output["files"]).intersection(set(gold_files)):
+                        print("Oops!")
+                    if len(output["files"]) > 1:
+                        print("Hmm...")
                     out_fname = out_dname / (instance_id + "_file.json")
-                    out_fname.write_text(json.dumps(result, indent=4))
+                    out_fname.write_text(json.dumps(output, indent=4))
 
                 entry_point(
                     problem_statement,
                     coder.repo_map,
+                    coder,
                     gold_files,
-                    instance_id,
                     result_writer,
                     None,  # coder.main_model.name,
                 )
                 continue
+
                 dump(instance_id)
                 dump(gold_files)
 
