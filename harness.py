@@ -24,7 +24,7 @@ else:
 from aider.io import InputOutput
 from aider.models import Model, register_litellm_models
 
-from file_finder import entry_point
+from entry_point import entry_point
 
 from dump import dump
 from tests import run_tests
@@ -264,10 +264,10 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
                 entry_point(
                     problem_statement,
                     coder.repo_map,
-                    coder.main_model.name,
                     gold_files,
                     instance_id,
                     result_writer,
+                    None,  # coder.main_model.name,
                 )
                 continue
                 dump(instance_id)
@@ -504,7 +504,7 @@ def main():
     # prefix = "lite025"
     # prefix = "full-"
     # prefix = "full025-"
-    prefix = "locate_file"
+    prefix = "next_wave-"
 
     #
     # Configure 1 or more models to use to try and find plausible solutions
@@ -542,7 +542,6 @@ def main():
     # found for an instance already, we don't need to keep looking in
     # this run.
     prior_dnames = sys.argv[1:]
-
 
     # bad_ids = [
     #     "pylint-dev__astroid-1333",
