@@ -5,7 +5,7 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.tools import StructuredTool
 
 from aider.codemap.repomap import RepoMap, search_terms_from_message
-from aider.coders.motleycrew_coder.inspect_object_tool import InspectEntityTool
+from aider.coders.motleycrew_coder.inspect_entity_tool import InspectEntityTool
 
 from motleycrew import MotleyCrew
 from motleycrew.common.llms import init_llm, LLMFramework, LLMFamily
@@ -34,42 +34,42 @@ def get_file_finder_task(
     You are working with an old version of the repo!
     Filenames, directory names, file contents, etc may be different than what you're used to.
     
-    Your task is to identify the Python file that needs to be modified to fix the issue. 
+    Your task is to identify the Python file, and the entity name 
+    within that file, that needs to be modified to fix the issue. 
     You are given an initial overview of the repo:
     {repo_map_str}
     
     The issue is as follows:
     {problem_statement}
     
-    You can use the inspect_object tool to get more information about specific entities in the repo.
-    ONLY use the inspect_object tool as long as NECESSARY to identify the file that needs to be modified.
-    NEVER call the inspect_object tool more than 3 times.
+    You can use the inspect_entity tool to get more information about specific entities in the repo.
+    ONLY use the inspect_entity tool as long as NECESSARY to identify the file that needs to be modified.
+    NEVER call the inspect_entity tool more than 5 times.
+    NEVER make the same call to the inspect_entity tool more than once.
+
+    Make sure to inspect the entity you're returning using the inspect_entity tool before returning it.
     
-    Return the filename of the file that needs to be modified, using the output_handler tool. 
-    If you can't decide between several possibilities, return all the possible filenames. 
-    However, return as few filenames as possible, try to return only one of you can.
-    Always return the filename(s) as a LIST of STRINGS, like `["dir1/dir2/file1.py", "file2.py"]`.
+    Return the entity name and the filename in which it is defined, that needs to be modified to fix the issue, 
+    using the output_handler tool. This should be done in the same format as for the inspect_entity tool, except
+    you MUST specify both the entity name and the filename.
     """
 
     inspect_entity_tool = InspectEntityTool(repo_map)
 
-    def check_files(rel_file_names: List[str]) -> Dict[str, List[str]]:
-        for rel_file_name in rel_file_names:
-            abs_path = str(repo_map.file_group.abs_root_path(rel_file_name))
-            if not rel_file_name.endswith(".py"):
-                raise InvalidOutput(f"File {rel_file_name} is not a Python file")
-            if not os.path.isfile(abs_path):
-                raise InvalidOutput(f"File {abs_path} does not exist or is not a file!")
+    def check_entity(entity_name: str, rel_file_name: str) -> Dict:
+        abs_path = str(repo_map.file_group.abs_root_path(rel_file_name))
+        if not rel_file_name.endswith(".py"):
+            raise InvalidOutput(f"File {rel_file_name} is not a Python file")
+        if not os.path.isfile(abs_path):
+            raise InvalidOutput(f"File {abs_path} does not exist or is not a file!")
 
-        return {"files": rel_file_names}
-
-    class FileListToolInput(BaseModel):
-        files: list[str] = Field(description="List of relative file paths that should be modified.")
+        # TODO: check that entity exists in file
+        return {"entity": (entity_name, rel_file_name)}
 
     output_handler = StructuredTool.from_function(
         name="output_handler",
         description="Output handler",
-        func=check_files,
+        func=check_entity,
         # args_schema=FileListToolInput,
     )
 

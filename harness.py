@@ -261,14 +261,13 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
                     output["gold_files"] = gold_files
                     output["instance_id"] = instance_id
                     print(output)
-                    if not set(output["files"]).intersection(set(gold_files)):
+                    if not output["entity"][1] in set(gold_files):
                         print("Oops!")
-                    if len(output["files"]) > 1:
-                        print("Hmm...")
+
                     out_fname = out_dname / (instance_id + "_file.json")
                     out_fname.write_text(json.dumps(output, indent=4))
 
-                entry_point(
+                added_files = entry_point(
                     problem_statement,
                     coder.repo_map,
                     coder,
@@ -276,50 +275,6 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
                     result_writer,
                     None,  # coder.main_model.name,
                 )
-                continue
-
-                dump(instance_id)
-                dump(gold_files)
-
-                # Tell aider to work on the `problem_statement`.
-                # This is the same as if you pasted it into a fresh chat with aider
-                # launched in the repo.
-                message = """Below is a real GitHub issue from a popular GitHub repository.
-The issue was filed some time ago.
-The repo has been checked out at the commit that existed at the moment the issue was filed.
-If you are already familiar with this repo, be cautious!
-You are working with an old version of the repo!
-Filenames, directory names, file contents, etc may be different than what you're used to.
-
-Propose changes to update the repo to fix the problem below.
-
-#"""
-                message += problem_statement
-                try:
-                    print(">>>>>>>> Running coder.run... <<<<<<<<")
-                    coder.run(message)
-                    print(">>>>>>>> Finished running coder.run <<<<<<<<")
-                except Exception as coder_err:
-                    # swallow any exceptions during benchmarking
-                    dump(coder_err)
-                    raise
-                    print(">>>>>>>> Exception during coder.run ^ <<<<<<<<")
-                    continue
-
-                # Take note of which files aider added to the chat for stats later
-                added_files = coder.get_inchat_relative_files()
-
-                if not added_files:
-                    print(">>>>>>>> No files named in the chat <<<<<<<<")
-                    print(">>>>>>>> Running coder.run again... <<<<<<<<")
-                    message = """You haven't named any files in this repo.
-Remember, this repo is checked out at quite an old commit.
-So the file layout and contents may be unfamiliar.
-
-Tell me: which 3-5 files from this repo should I look at to solve the problem?
-"""
-                    coder.run(message)
-                    print(">>>>>>>> Finished running coder.run again <<<<<<<<")
 
                 dump(instance_id)
                 dump(gold_files)
@@ -333,6 +288,11 @@ Tell me: which 3-5 files from this repo should I look at to solve the problem?
                 model_patch = diff_versus_commit(git_tempdir, base_commit)
                 print(">>>>>>>> Finished diff_versus_commit <<<<<<<<")
                 dump(model_patch)
+
+            # TODO: make this real
+            coder.edit_outcome = True
+            coder.lint_outcome = True
+            coder.test_outcome = True
 
             # Record the results for the logs
             result = dict(
@@ -554,7 +514,7 @@ def main():
     # bad_ids = [
     #     "pylint-dev__astroid-1333",
     #     "sqlfluff__sqlfluff-1517",
-    #     "sqlfluff__sqlfluff-1625",
+    #     # "sqlfluff__sqlfluff-1625",
     #     "sqlfluff__sqlfluff-1733",
     #     "sqlfluff__sqlfluff-1763",
     # ]

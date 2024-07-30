@@ -18,19 +18,25 @@ def entry_point(
     file_finder_task = get_file_finder_task(problem_statement, repo_map, crew, llm_name)
     result = crew.run()
     output = file_finder_task.output
+    if isinstance(output, str):
+        print(output)
+        return None
 
-    if not set(output["files"]).intersection(set(gold_files)):
-        result_writer(output)
-    else:
-        crew = MotleyCrew()
-        bug_fixer_task = get_bug_fixer_task(
-            coder, output["files"], problem_statement, repo_map, crew, llm_name
-        )
-        result = crew.run()
-        output = bug_fixer_task.output
-        # result_writer(output)
+    # if not output["entity"][1] in set(gold_files):
+    #     result_writer(output)
+    #     print("ouch!")
+
+    # Now run the bug-fixing task
+    crew = MotleyCrew()
+    bug_fixer_task = get_bug_fixer_task(
+        coder, output["entity"], problem_statement, repo_map, crew, llm_name
+    )
+    result = crew.run()
+    output2 = bug_fixer_task.output
+    result_writer(output)
 
     print("yay!")
+    return [output["entity"][1]]
 
 
 # So, the plan is:

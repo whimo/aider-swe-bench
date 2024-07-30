@@ -188,7 +188,7 @@ def combine_jsonl_logs(predictions, model_name_or_path):
 def main():
     # Run with a set of prediction directories, in order of priority.
     # Plausible solution found in the earliest directory will be selected.
-    dnames = ["C:\\Users\\Egor\\Dropbox\\Code\\aider-swe-bench\\predictions\\motley1--gpt-4o"]
+    dnames = ["C:\\Users\\Egor\\Dropbox\\Code\\aider-swe-bench\\predictions\\next_wave---gpt-4o"]
     # dnames = sys.argv[1:]
 
     # Make sure evals have been completed on all instances in all supplied
