@@ -6,6 +6,8 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from dataclasses import dataclass
+from abc import ABC, abstractmethod
 
 import lox
 
@@ -237,7 +239,8 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
 
     # Do NUM_TRIES tries for each of the models, until we find a *plausible* solution
     for attempt in range(1, num_tries + 1):
-        for model in models:
+        for model_family, model in models:
+            set_model_as_motleycrew_default(model_family, model)
             dump(attempt, model)
 
             with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as git_tempdir:
@@ -264,17 +267,32 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
                     if not output["entity"][1] in set(gold_files):
                         print("Oops!")
 
-                    out_fname = out_dname / (instance_id + "_file.json")
-                    out_fname.write_text(json.dumps(output, indent=4))
+                    # out_fname = out_dname / (instance_id + "_file.json")
+                    # out_fname.write_text(json.dumps(output, indent=4))
 
-                added_files = entry_point(
+                run_result = entry_point(
                     problem_statement,
                     coder.repo_map,
                     coder,
-                    gold_files,
+                    test_cmd,
                     result_writer,
                     None,  # coder.main_model.name,
                 )
+
+                if run_result is None:
+                    coder.edit_outcome = False
+                    coder.lint_outcome = False
+                    coder.test_outcome = False
+                    run_failed = True
+                    continue
+                else:
+                    coder.edit_outcome = True
+                    coder.lint_outcome = True
+                    coder.test_outcome = True
+                    run_failed = False
+
+                added_files = run_result["files"]
+                tests_passed = run_result["result"]
 
                 dump(instance_id)
                 dump(gold_files)
@@ -289,10 +307,7 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
                 print(">>>>>>>> Finished diff_versus_commit <<<<<<<<")
                 dump(model_patch)
 
-            # TODO: make this real
-            coder.edit_outcome = True
-            coder.lint_outcome = True
-            coder.test_outcome = True
+            # TODO: catch fails of
 
             # Record the results for the logs
             result = dict(
@@ -381,7 +396,7 @@ def process_instances(
                    If they contain a plausible solution for an instance,
                    don't continue looking.
     """
-    models_slug = "--".join(model.replace("/", "-") for model in models)
+    models_slug = "--".join(model.replace("/", "-") for model_family, model in models)
     model_name_or_path = "aider--" + models_slug
     models_slug = prefix + "--" + models_slug
 
@@ -460,36 +475,11 @@ def process_instances(
         gather()
 
 
-def main():
+def main(prefix, models, num_tries, temperature, threads, prior_dnames):
     models_json = Path(".aider.models.json")
     if models_json.exists():
         print(f"Registering {models_json}")
         register_litellm_models([str(models_json)])
-
-    #
-    # Set the prefix to use in front of the predictions/ subdir name.
-    #
-    # prefix = "lite025"
-    # prefix = "full-"
-    # prefix = "full025-"
-    prefix = "next_wave-"
-
-    #
-    # Configure 1 or more models to use to try and find plausible solutions
-    #
-    # models = ["openrouter/deepseek/deepseek-chat"]
-    # models = ["gpt-4o", "openrouter/anthropic/claude-3-opus"]
-    # models = ["openrouter/anthropic/claude-3-opus"]
-    models = ["gpt-4o"]
-    # models = ["gpt-4-1106-preview"]
-    # models = ["openrouter/anthropic/claude-3.5-sonnet"]
-    # models = ["claude-3-5-sonnet-20240620"]
-
-    # How many attempts per model to try and find a plausible solutions?
-    num_tries = 1
-
-    # What temperature to use during chat completions
-    temperature = 0
 
     # Load the SWE Bench dataset
     # dataset = get_full_dataset()
@@ -502,23 +492,14 @@ def main():
         devin_insts = get_devin_instance_ids()
         dataset = dict((inst, entry) for inst, entry in dataset.items() if inst in devin_insts)
 
-    # How many threads to use for attempting instances in parallel
-    threads = 1
-
-    # Any predictions/ dirs provided on the command line are treated
-    # as earlier, higher priority runs.  If a plausible solution was
-    # found for an instance already, we don't need to keep looking in
-    # this run.
-    prior_dnames = sys.argv[1:]
-
-    # bad_ids = [
-    #     "pylint-dev__astroid-1333",
-    #     "sqlfluff__sqlfluff-1517",
-    #     # "sqlfluff__sqlfluff-1625",
-    #     "sqlfluff__sqlfluff-1733",
-    #     "sqlfluff__sqlfluff-1763",
-    # ]
-    # dataset = dict((inst, entry) for inst, entry in dataset.items() if inst in bad_ids)
+    bad_ids = [
+        #     "pylint-dev__astroid-1333",
+        #     "sqlfluff__sqlfluff-1517",
+        #     # "sqlfluff__sqlfluff-1625",
+        #     "sqlfluff__sqlfluff-1733",
+        "sqlfluff__sqlfluff-1763",
+    ]
+    dataset = dict((inst, entry) for inst, entry in dataset.items() if inst in bad_ids)
 
     process_instances(
         prefix,
@@ -532,6 +513,50 @@ def main():
     )
 
 
+from motleycrew.common import Defaults
+
+
+def set_model_as_motleycrew_default(llm_family, model_name):
+    Defaults.DEFAULT_LLM_FAMILY = llm_family
+    Defaults.DEFAULT_LLM_NAME = model_name
+
+
 if __name__ == "__main__":
-    status = main()
+    from motleycrew.common import LLMFamily
+
+    # Configure 1 or more models to use to try and find plausible solutions
+    #
+    # models = ["openrouter/deepseek/deepseek-chat"]
+    # models = ["gpt-4o", "openrouter/anthropic/claude-3-opus"]
+    # models = ["openrouter/anthropic/claude-3-opus"]
+
+    # models = ["gpt-4-1106-preview"]
+    # models = ["openrouter/anthropic/claude-3.5-sonnet"]
+    # models = ["claude-3-5-sonnet-20240620"]
+
+    models = [(LLMFamily.OPENAI, "gpt-4o")]  # , (LLMFamily.ANTHROPIC, "claude-3.5-sonnet")]
+
+    # How many attempts per model to try and find a plausible solutions?
+    num_tries = 3
+    # How many threads to use for attempting instances in parallel
+    threads = 1
+
+    # Any predictions/ dirs provided on the command line are treated
+    # as earlier, higher priority runs.  If a plausible solution was
+    # found for an instance already, we don't need to keep looking in
+    # this run.
+    prior_dnames = sys.argv[1:]
+
+    # What temperature to use during chat completions
+    temperature = 0
+    prefix = "test-run"
+
+    status = main(
+        prefix=prefix,
+        models=models,
+        num_tries=num_tries,
+        temperature=temperature,
+        threads=threads,
+        prior_dnames=prior_dnames,
+    )
     sys.exit(status)
