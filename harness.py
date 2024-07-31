@@ -492,14 +492,14 @@ def main(prefix, models, num_tries, temperature, threads, prior_dnames):
         devin_insts = get_devin_instance_ids()
         dataset = dict((inst, entry) for inst, entry in dataset.items() if inst in devin_insts)
 
-    bad_ids = [
-        #     "pylint-dev__astroid-1333",
-        #     "sqlfluff__sqlfluff-1517",
-        #     # "sqlfluff__sqlfluff-1625",
-        #     "sqlfluff__sqlfluff-1733",
-        "sqlfluff__sqlfluff-1763",
-    ]
-    dataset = dict((inst, entry) for inst, entry in dataset.items() if inst in bad_ids)
+    # bad_ids = [
+    #     #     "pylint-dev__astroid-1333",
+    #     #     "sqlfluff__sqlfluff-1517",
+    #     #     # "sqlfluff__sqlfluff-1625",
+    #     #     "sqlfluff__sqlfluff-1733",
+    #     "sqlfluff__sqlfluff-1763",
+    # ]
+    # dataset = dict((inst, entry) for inst, entry in dataset.items() if inst in bad_ids)
 
     process_instances(
         prefix,
