@@ -185,12 +185,10 @@ def combine_jsonl_logs(predictions, model_name_or_path):
     return predictions_jsonl, log_dir
 
 
-def main(prefix):
+def main(path):
     # Run with a set of prediction directories, in order of priority.
     # Plausible solution found in the earliest directory will be selected.
-    dnames = [
-        "C:\\Users\\Egor\\Dropbox\\Code\\aider-swe-bench\\predictions\\test-run--gpt-4o--claude-3.5-sonnet"
-    ]
+    dnames = [path]
     # dnames = sys.argv[1:]
 
     # Make sure evals have been completed on all instances in all supplied
@@ -431,5 +429,7 @@ def stats_on_tests_before_and_after(report, predictions):
 
 
 if __name__ == "__main__":
-    status = main(prefix="test-run")
+    status = main(
+        path="C:\\Users\\Egor\\Dropbox\\Code\\aider-swe-bench\\predictions\\test-run--gpt-4o"
+    )
     sys.exit(status)

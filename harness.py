@@ -534,7 +534,7 @@ if __name__ == "__main__":
     # models = ["openrouter/anthropic/claude-3.5-sonnet"]
     # models = ["claude-3-5-sonnet-20240620"]
 
-    models = [(LLMFamily.OPENAI, "gpt-4o")]  # , (LLMFamily.ANTHROPIC, "claude-3.5-sonnet")]
+    models = [(LLMFamily.ANTHROPIC, "claude-3-opus")]  # (LLMFamily.OPENAI, "gpt-4o")]  # ,
 
     # How many attempts per model to try and find a plausible solutions?
     num_tries = 3
