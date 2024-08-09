@@ -9,7 +9,7 @@ from dump import dump  # noqa: F401
 
 SPLIT = "dev"
 
-FULL_DATASET = "princeton-nlp/SWE-bench"
+FULL_DATASET = f"princeton-nlp/SWE-bench"
 FULL_DATASET_FNAME = FULL_DATASET.replace("/", "--") + ".json"
 
 LITE_DATASET = "princeton-nlp/SWE-bench_Lite"
@@ -20,10 +20,11 @@ def dump_dataset(dataset, fname):
     """
     Save the dataset to json.
     """
-    entries = list(dataset)
-    for entry in entries:
-        entry["FAIL_TO_PASS"] = json.loads(entry["FAIL_TO_PASS"])
-        entry["PASS_TO_PASS"] = json.loads(entry["PASS_TO_PASS"])
+    entries = {split: list(dataset[split]) for split in dataset}
+    for split, split_entries in entries.items():
+        for entry in split_entries:
+            entry["FAIL_TO_PASS"] = json.loads(entry["FAIL_TO_PASS"])
+            entry["PASS_TO_PASS"] = json.loads(entry["PASS_TO_PASS"])
 
     with open(fname, "w") as f:
         json.dump(entries, f, indent=4)
@@ -50,11 +51,10 @@ def get_dataset(dataset, fname):
     else:
         dump(dataset)
         dataset = load_dataset(dataset)
-        dataset = dataset[SPLIT]
         dump_dataset(dataset, fname)
 
     res = dict()
-    for entry in dataset:
+    for entry in dataset[SPLIT]:
         res[entry["instance_id"]] = entry
 
     return res
@@ -67,7 +67,7 @@ def load_predictions(paths, devin_only=False):
         if path.is_file():
             prediction_paths.append(path)
         elif path.is_dir():
-            prediction_paths += list(path.glob("*.json"))
+            prediction_paths += list(path.glob("*[!_file].json"))
         else:
             assert False, path
 

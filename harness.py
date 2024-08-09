@@ -1,15 +1,12 @@
 #!/usr/bin/env python
 
 import json
-import random
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from dataclasses import dataclass
-from abc import ABC, abstractmethod
 
-import lox
+from joblib import Parallel, delayed
 
 USE_ORIG_AIDER = False
 
@@ -166,7 +163,7 @@ def get_coder(model, git_dname, chat_history_file, test_cmd, temperature, oracle
 
     io = InputOutput(
         yes=True,  # Say yes to every suggestion aider makes
-        chat_history_file=chat_history_file,  # Log the chat here
+        chat_history_file=None,  # Log the chat here
         input_history_file="/dev/null",  # Don't log the "user input"
     )
 
@@ -262,13 +259,14 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
 
                 def result_writer(output: dict):
                     output["gold_files"] = gold_files
+                    output["gold_patch"] = entry["patch"]
                     output["instance_id"] = instance_id
                     print(output)
                     if not output["entity"][1] in set(gold_files):
                         print("Oops!")
 
-                    # out_fname = out_dname / (instance_id + "_file.json")
-                    # out_fname.write_text(json.dumps(output, indent=4))
+                    out_fname = out_dname / (instance_id + "_file.json")
+                    out_fname.write_text(json.dumps(output, indent=4))
 
                 run_result = entry_point(
                     problem_statement,
@@ -277,6 +275,9 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
                     test_cmd,
                     result_writer,
                     None,  # coder.main_model.name,
+                    chat_history_file,
+                    gold_files,
+                    entry["patch"],
                 )
 
                 if run_result is None:
@@ -383,6 +384,7 @@ def process_instances(
     temperature,
     threads,
     prior_dnames,
+    instances,
     just_devin_570,
 ):
     """
@@ -405,7 +407,7 @@ def process_instances(
 
     out_dname = PREDS_DNAME / models_slug
     if not out_dname.exists():
-        out_dname.mkdir()
+        out_dname.mkdir(parents=True)
 
     dump(out_dname)
 
@@ -432,14 +434,17 @@ def process_instances(
     remaining_instances -= plausible_instances
 
     remaining_instances = list(remaining_instances)
+
+    if instances:
+        remaining_instances = [inst for inst in remaining_instances if inst in instances]
     # random.shuffle(remaining_instances)
 
     dump(sorted(remaining_instances))
     dump(len(remaining_instances))
 
-    # print()
-    # print("press enter...")
-    # input()
+    print()
+    print("press enter...")
+    input()
 
     if not CHAT_LOGS_DNAME.exists():
         CHAT_LOGS_DNAME.mkdir()
@@ -448,34 +453,47 @@ def process_instances(
     chat_history_dname.mkdir(exist_ok=True)
 
     if threads > 1:
-        process_one_instance_lox = lox.process(threads)(process_one_instance)
-        process_one_instance_func = process_one_instance_lox.scatter
-        gather = process_one_instance_lox.gather
-    else:
-        process_one_instance_func = process_one_instance
+        # process_one_instance_lox = lox.process(threads)(process_one_instance)
+        # process_one_instance_func = process_one_instance_lox.scatter
+        # gather = process_one_instance_lox.gather
+        def process_one_instance_wrapper(instance_id):
+            return process_one_instance(
+                dataset[instance_id],
+                num_tries,
+                models,
+                temperature,
+                model_name_or_path,
+                out_dname,
+            )
 
-    for instance_id in sorted(remaining_instances):
-        # if instance_id in done_instances:
-        #     print("skipping", instance_id)
-        #     continue
-
-        process_one_instance_func(
-            dataset[instance_id],
-            num_tries,
-            models,
-            temperature,
-            model_name_or_path,
-            out_dname,
+        Parallel(n_jobs=threads)(
+            delayed(process_one_instance_wrapper)(instance_id)
+            for instance_id in sorted(remaining_instances)
         )
 
-        print("#" * 60)
+    else:
+        for instance_id in sorted(remaining_instances):
+            # if instance_id in done_instances:
+            #     print("skipping", instance_id)
+            #     continue
+
+            process_one_instance(
+                dataset[instance_id],
+                num_tries,
+                models,
+                temperature,
+                model_name_or_path,
+                out_dname,
+            )
+
+            print("#" * 60)
         # input()
 
-    if threads > 1:
-        gather()
+    # if threads > 1:
+    #     gather()
 
 
-def main(prefix, models, num_tries, temperature, threads, prior_dnames):
+def main(prefix, models, num_tries, temperature, threads, prior_dnames, instances):
     models_json = Path(".aider.models.json")
     if models_json.exists():
         print(f"Registering {models_json}")
@@ -509,6 +527,7 @@ def main(prefix, models, num_tries, temperature, threads, prior_dnames):
         temperature,
         threads,
         prior_dnames,
+        instances,
         just_devin_570,
     )
 
@@ -534,12 +553,12 @@ if __name__ == "__main__":
     # models = ["openrouter/anthropic/claude-3.5-sonnet"]
     # models = ["claude-3-5-sonnet-20240620"]
 
-    models = [(LLMFamily.ANTHROPIC, "claude-3-opus")]  # (LLMFamily.OPENAI, "gpt-4o")]  # ,
+    models = [(LLMFamily.OPENAI, "gpt-4o")]  # (LLMFamily.OPENAI, "gpt-4o")]  # ,
 
     # How many attempts per model to try and find a plausible solutions?
     num_tries = 3
     # How many threads to use for attempting instances in parallel
-    threads = 1
+    threads = 4
 
     # Any predictions/ dirs provided on the command line are treated
     # as earlier, higher priority runs.  If a plausible solution was
@@ -547,9 +566,30 @@ if __name__ == "__main__":
     # this run.
     prior_dnames = sys.argv[1:]
 
+    instances = [
+        # "astropy__astropy-14365",
+        # "django__django-11049",
+        # "django__django-12983",
+        # "django__django-15781",
+        # "matplotlib__matplotlib-23476",
+        # "matplotlib__matplotlib-24334",
+        # "mwaskom__seaborn-3010",
+        # "psf__requests-863",
+        # "pydata__xarray-4248",
+        # "pytest-dev__pytest-5103",
+        # "pytest-dev__pytest-11143",
+        # "scikit-learn__scikit-learn-13584",
+        # "scikit-learn__scikit-learn-25500",
+        # "sphinx-doc__sphinx-8273",
+        # "sphinx-doc__sphinx-8282",
+        # "sympy__sympy-13146",
+        # "sympy__sympy-13773",
+        # "sympy__sympy-24066",
+    ]
+
     # What temperature to use during chat completions
     temperature = 0
-    prefix = "test-run"
+    prefix = "dev3"
 
     status = main(
         prefix=prefix,
@@ -558,5 +598,6 @@ if __name__ == "__main__":
         temperature=temperature,
         threads=threads,
         prior_dnames=prior_dnames,
+        instances=instances,
     )
     sys.exit(status)

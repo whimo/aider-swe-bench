@@ -34,7 +34,7 @@ def run_evals(swe_bench_tasks, log_dir, predictions_jsonl):
     base = os.getcwd()
 
     run_evals_cmd = f"""
-python {base}/SWE-bench-docker/run_evaluation.py
+python {base}/aider-swe-bench/SWE-bench-docker/run_evaluation.py
     --log_dir {base}/{log_dir}
     --swe_bench_tasks {base}/{swe_bench_tasks}
     --skip_existing
@@ -429,7 +429,5 @@ def stats_on_tests_before_and_after(report, predictions):
 
 
 if __name__ == "__main__":
-    status = main(
-        path="C:\\Users\\Egor\\Dropbox\\Code\\aider-swe-bench\\predictions\\test-run--gpt-4o"
-    )
+    status = main(path="/home/ubuntu/predictions/test4--gpt-4o")
     sys.exit(status)

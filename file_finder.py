@@ -1,17 +1,21 @@
 import os.path
-from typing import List, Dict
+from typing import Dict
 
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.tools import StructuredTool
 
-from aider.codemap.repomap import RepoMap, search_terms_from_message
+from aider.codemap.repomap import RepoMap
 from aider.coders.motleycrew_coder.inspect_entity_tool import InspectEntityTool
-
 from motleycrew import MotleyCrew
-from motleycrew.common.llms import init_llm, LLMFramework, LLMFamily
-from motleycrew.tasks import SimpleTask
 from motleycrew.agents.langchain.tool_calling_react import ReActToolCallingMotleyAgent
 from motleycrew.common.exceptions import InvalidOutput
+from motleycrew.common.llms import init_llm, LLMFramework, LLMFamily
+from motleycrew.tasks import SimpleTask
+
+
+class FileListToolInput(BaseModel):
+    entity_name: str = Field(description="Name of the entity to modify.", default=None)
+    file_name: str = Field(description="Full name of the file containing the entity.", default=None)
 
 
 def get_file_finder_task(
@@ -56,21 +60,21 @@ def get_file_finder_task(
 
     inspect_entity_tool = InspectEntityTool(repo_map)
 
-    def check_entity(entity_name: str, rel_file_name: str) -> Dict:
-        abs_path = str(repo_map.file_group.abs_root_path(rel_file_name))
-        if not rel_file_name.endswith(".py"):
-            raise InvalidOutput(f"File {rel_file_name} is not a Python file")
+    def check_entity(entity_name: str, file_name: str) -> Dict:
+        abs_path = str(repo_map.file_group.abs_root_path(file_name))
+        if not file_name.endswith(".py"):
+            raise InvalidOutput(f"File {file_name} is not a Python file")
         if not os.path.isfile(abs_path):
             raise InvalidOutput(f"File {abs_path} does not exist or is not a file!")
 
         # TODO: check that entity exists in file
-        return {"entity": (entity_name, rel_file_name)}
+        return {"entity": (entity_name, file_name)}
 
     output_handler = StructuredTool.from_function(
         name="output_handler",
         description="Output handler",
         func=check_entity,
-        # args_schema=FileListToolInput,
+        args_schema=FileListToolInput,
     )
 
     file_finder = ReActToolCallingMotleyAgent(
