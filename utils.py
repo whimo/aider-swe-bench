@@ -7,8 +7,6 @@ from datasets import load_dataset
 
 from dump import dump  # noqa: F401
 
-SPLIT = "dev"
-
 FULL_DATASET = f"princeton-nlp/SWE-bench"
 FULL_DATASET_FNAME = FULL_DATASET.replace("/", "--") + ".json"
 
@@ -30,15 +28,15 @@ def dump_dataset(dataset, fname):
         json.dump(entries, f, indent=4)
 
 
-def get_full_dataset():
-    return get_dataset(FULL_DATASET, FULL_DATASET_FNAME)
+def get_full_dataset(split):
+    return get_dataset(FULL_DATASET, FULL_DATASET_FNAME, split)
 
 
-def get_lite_dataset():
-    return get_dataset(LITE_DATASET, LITE_DATASET_FNAME)
+def get_lite_dataset(split):
+    return get_dataset(LITE_DATASET, LITE_DATASET_FNAME, split)
 
 
-def get_dataset(dataset, fname):
+def get_dataset(dataset, fname, split):
     """
     Load the `DATASET` from hugging face, and turn it into a dict
     keyed on `instance_id`.
@@ -54,7 +52,7 @@ def get_dataset(dataset, fname):
         dump_dataset(dataset, fname)
 
     res = dict()
-    for entry in dataset[SPLIT]:
+    for entry in dataset[split]:
         res[entry["instance_id"]] = entry
 
     return res

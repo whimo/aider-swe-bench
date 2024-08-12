@@ -1,3 +1,4 @@
+import logging
 import re
 import sys
 import traceback
@@ -6,21 +7,35 @@ from typing import Callable
 from aider.codemap.repomap import RepoMap
 from aider.coders.motleycrew_coder.motleycrew_coder import MotleyCrewCoder
 from bug_fixer import get_bug_fixer_task
-from file_finder import get_file_finder_task
 from motleycrew import MotleyCrew
 from motleycrew.common import logger, configure_logging
 
 
 class DualLogger:
-    def __init__(self, file_path):
+    def __init__(self, file_path, logger):
         self.file_path = file_path
+        self.logger = logger
         self._original_stdout = sys.stdout
         self._original_stderr = sys.stderr
 
     def __enter__(self):
         self._file = open(self.file_path, "w")
+
+        # Redirect stdout and stderr to the custom stream
         sys.stdout = self
         sys.stderr = self
+
+        # Create a file handler that logs to the same file
+        self.file_handler = logging.FileHandler(self.file_path)
+        self.file_handler.setLevel(logging.DEBUG)
+
+        # Create a formatter and set it for the file handler
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        self.file_handler.setFormatter(formatter)
+
+        # Add the file handler to the existing logger
+        self.logger.addHandler(self.file_handler)
+
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -28,9 +43,17 @@ class DualLogger:
         sys.stderr = self._original_stderr
         self._file.close()
 
+        # Remove the file handler from the logger
+        self.logger.removeHandler(self.file_handler)
+
+        # Close the file handler
+        self.file_handler.close()
+
     def write(self, message):
-        self._original_stdout.write(message)
-        self._file.write(message)
+        # Write to the original stdout/stderr and the file, but only non-empty messages
+        if message.strip():
+            self._original_stdout.write(message)
+            self._file.write(message)
 
     def flush(self):
         self._original_stdout.flush()
@@ -50,17 +73,17 @@ def entry_point(
 ):
     configure_logging(verbose=True)
 
-    with DualLogger(chat_history_file):
+    with DualLogger(chat_history_file, logger):
         try:
-            gold_entity, gold_entity_text = get_gold_entity(repo_map, gold_files, gold_patch)
-
-            crew = MotleyCrew()
-            file_finder_task = get_file_finder_task(problem_statement, repo_map, crew, llm_name)
-            result = crew.run()
-            output = file_finder_task.output
-            if not isinstance(output, dict) or "entity" not in output or len(output["entity"]) != 2:
-                print(output)
-                return None
+            # gold_entity, gold_entity_text = get_gold_entity(repo_map, gold_files, gold_patch)
+            #
+            # crew = MotleyCrew()
+            # file_finder_task = get_file_finder_task(problem_statement, repo_map, crew, llm_name)
+            # result = crew.run()
+            # output = file_finder_task.output
+            # if not isinstance(output, dict) or "entity" not in output or len(output["entity"]) != 2:
+            #     print(output)
+            #     return None
 
             # if not output["entity"][1] in set(gold_files):
             #     result_writer(output)
@@ -70,7 +93,7 @@ def entry_point(
             crew = MotleyCrew()
             bug_fixer_task = get_bug_fixer_task(
                 coder,
-                output["entity"],
+                None,  # output["entity"],
                 problem_statement,
                 existing_test_runner,
                 repo_map,
@@ -82,13 +105,13 @@ def entry_point(
             if output2 != "Tests passed!":
                 return None
 
-            if gold_entity:
-                output["gold_entity"] = gold_entity.name
-            output["gold_entity_text"] = gold_entity_text
-            result_writer(output)
+            # if gold_entity:
+            #     output["gold_entity"] = gold_entity.name
+            # output["gold_entity_text"] = gold_entity_text
+            # result_writer(output)
 
             print("yay!")
-            return {"files": [output["entity"][1]], "result": output2}
+            return {"files": coder.aider_edited_files, "result": output2}
         except Exception as e:
             logger.error(traceback.format_exc())
             # raise e

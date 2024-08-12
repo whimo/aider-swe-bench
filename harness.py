@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import json
+import math
+import random
 import subprocess
 import sys
 import tempfile
@@ -376,6 +378,19 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
     out_fname.write_text(json.dumps(winner, indent=4))
 
 
+def select_random_portion(lst, fraction, seed):
+    # Set the seed for reproducibility
+    random.seed(seed)
+
+    # Calculate the number of elements to select
+    k = math.ceil(len(lst) * fraction)
+
+    # Randomly select k elements from the list
+    selected_elements = random.sample(lst, k)
+
+    return selected_elements
+
+
 def process_instances(
     prefix,
     dataset,
@@ -386,6 +401,8 @@ def process_instances(
     prior_dnames,
     instances,
     just_devin_570,
+    dataset_portion,
+    random_seed,
 ):
     """
     prefix - Prefix used in front of the dirname in predictions/.
@@ -404,6 +421,9 @@ def process_instances(
 
     dump(models)
     dump(temperature)
+
+    dataset_instances = select_random_portion(list(dataset.keys()), dataset_portion, random_seed)
+    dump(dataset_instances)
 
     out_dname = PREDS_DNAME / models_slug
     if not out_dname.exists():
@@ -427,7 +447,7 @@ def process_instances(
         # Just keep trying to solve instances that exist in the previous runs
         all_instances = set(prior_preds.keys())
     else:
-        all_instances = set(dataset.keys())
+        all_instances = set(dataset_instances)
 
     remaining_instances = set(all_instances)
     remaining_instances -= done_instances
@@ -452,6 +472,8 @@ def process_instances(
     chat_history_dname = CHAT_LOGS_DNAME / models_slug
     chat_history_dname.mkdir(exist_ok=True)
 
+    random.shuffle(remaining_instances)
+
     if threads > 1:
         # process_one_instance_lox = lox.process(threads)(process_one_instance)
         # process_one_instance_func = process_one_instance_lox.scatter
@@ -468,11 +490,11 @@ def process_instances(
 
         Parallel(n_jobs=threads)(
             delayed(process_one_instance_wrapper)(instance_id)
-            for instance_id in sorted(remaining_instances)
+            for instance_id in remaining_instances
         )
 
     else:
-        for instance_id in sorted(remaining_instances):
+        for instance_id in remaining_instances:
             # if instance_id in done_instances:
             #     print("skipping", instance_id)
             #     continue
@@ -493,7 +515,18 @@ def process_instances(
     #     gather()
 
 
-def main(prefix, models, num_tries, temperature, threads, prior_dnames, instances):
+def main(
+    prefix,
+    models,
+    num_tries,
+    temperature,
+    threads,
+    prior_dnames,
+    instances,
+    dataset_split,
+    dataset_portion,
+    random_seed,
+):
     models_json = Path(".aider.models.json")
     if models_json.exists():
         print(f"Registering {models_json}")
@@ -501,7 +534,7 @@ def main(prefix, models, num_tries, temperature, threads, prior_dnames, instance
 
     # Load the SWE Bench dataset
     # dataset = get_full_dataset()
-    dataset = get_lite_dataset()
+    dataset = get_lite_dataset(dataset_split)
 
     just_devin_570 = False
 
@@ -529,6 +562,8 @@ def main(prefix, models, num_tries, temperature, threads, prior_dnames, instance
         prior_dnames,
         instances,
         just_devin_570,
+        dataset_portion,
+        random_seed,
     )
 
 
@@ -585,11 +620,16 @@ if __name__ == "__main__":
         # "sympy__sympy-13146",
         # "sympy__sympy-13773",
         # "sympy__sympy-24066",
+        # "pylint-dev__astroid-1333",
+        # "pyvista__pyvista-4315",
+        # "sqlfluff__sqlfluff-1625",
+        # "pvlib__pvlib-python-1606",
+        # "marshmallow-code__marshmallow-1359",
     ]
 
     # What temperature to use during chat completions
     temperature = 0
-    prefix = "dev3"
+    prefix = "testpart1"
 
     status = main(
         prefix=prefix,
@@ -599,5 +639,8 @@ if __name__ == "__main__":
         threads=threads,
         prior_dnames=prior_dnames,
         instances=instances,
+        dataset_split="test",
+        dataset_portion=0.2,
+        random_seed=3,
     )
     sys.exit(status)

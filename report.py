@@ -30,6 +30,89 @@ using_dataset = "lite"
 NUM_EVAL_PROCS = 5
 
 
+AIDER_RESOLVED = {
+    "sympy__sympy-23117",
+    "django__django-13315",
+    "mwaskom__seaborn-3010",
+    "django__django-14382",
+    "django__django-15789",
+    "django__django-14999",
+    "django__django-14915",
+    "django__django-16139",
+    "django__django-16255",
+    "scikit-learn__scikit-learn-13584",
+    "django__django-11583",
+    "sympy__sympy-14774",
+    "django__django-13768",
+    "django__django-12286",
+    "django__django-13658",
+    "django__django-14752",
+    "django__django-16527",
+    "django__django-16379",
+    "pytest-dev__pytest-11143",
+    "psf__requests-863",
+    "django__django-11422",
+    "django__django-13447",
+    "sympy__sympy-24213",
+    "sympy__sympy-13647",
+    "scikit-learn__scikit-learn-10297",
+    "django__django-14016",
+    "django__django-16041",
+    "sympy__sympy-13031",
+    "sympy__sympy-17655",
+    "sympy__sympy-24152",
+    "django__django-11179",
+    "matplotlib__matplotlib-23562",
+    "scikit-learn__scikit-learn-15535",
+    "scikit-learn__scikit-learn-13241",
+    "sympy__sympy-20212",
+    "psf__requests-2317",
+    "pytest-dev__pytest-7373",
+    "scikit-learn__scikit-learn-13496",
+    "django__django-12453",
+    "django__django-16046",
+    "scikit-learn__scikit-learn-11281",
+    "pydata__xarray-5131",
+    "sympy__sympy-18621",
+    "pytest-dev__pytest-7432",
+    "django__django-12983",
+    "django__django-17051",
+    "matplotlib__matplotlib-23964",
+    "sympy__sympy-21055",
+    "sympy__sympy-15678",
+    "pytest-dev__pytest-7490",
+    "django__django-15814",
+    "sympy__sympy-13480",
+    "scikit-learn__scikit-learn-13779",
+    "django__django-13158",
+    "pytest-dev__pytest-5227",
+    "django__django-13401",
+    "psf__requests-2674",
+    "django__django-11099",
+    "sympy__sympy-13471",
+    "scikit-learn__scikit-learn-14894",
+    "matplotlib__matplotlib-26020",
+    "django__django-13933",
+    "sympy__sympy-22714",
+    "django__django-12708",
+    "scikit-learn__scikit-learn-13439",
+    "django__django-14855",
+    "django__django-11133",
+    "django__django-13590",
+    "pytest-dev__pytest-5692",
+    "django__django-12125",
+    "scikit-learn__scikit-learn-25570",
+    "matplotlib__matplotlib-23913",
+    "sympy__sympy-18532",
+    "sphinx-doc__sphinx-8713",
+    "sphinx-doc__sphinx-8721",
+    "django__django-11039",
+    "django__django-13710",
+    "django__django-11049",
+    "django__django-14608",
+}
+
+
 def run_evals(swe_bench_tasks, log_dir, predictions_jsonl):
     base = os.getcwd()
 
@@ -72,7 +155,7 @@ def get_report(swe_bench_tasks, log_dir, predictions_jsonl, model_name_or_path):
 
     # dump(report)
 
-    resolved_instances = report["resolved"]
+    resolved_instances = set(report["resolved"])
     dump(sorted(resolved_instances))
 
     generated = set(report["generated"])
@@ -81,6 +164,16 @@ def get_report(swe_bench_tasks, log_dir, predictions_jsonl, model_name_or_path):
     dump(len(generated_minus_applied))
     generated_minus_applied = " ".join(iid + "*" for iid in sorted(generated_minus_applied))
     dump(generated_minus_applied)
+
+    applied_minus_resolved = applied - resolved_instances
+
+    dump(sorted(applied_minus_resolved))
+
+    aider_resolved_we_didnt = applied_minus_resolved.intersection(AIDER_RESOLVED)
+    dump(sorted(aider_resolved_we_didnt))
+
+    we_resolved_aider_didnt = resolved_instances - AIDER_RESOLVED
+    dump(sorted(we_resolved_aider_didnt))
 
     with_logs = set(report["with_logs"])
     with_logs_minus_applied = with_logs - applied
@@ -429,5 +522,5 @@ def stats_on_tests_before_and_after(report, predictions):
 
 
 if __name__ == "__main__":
-    status = main(path="/home/ubuntu/predictions/test4--gpt-4o")
+    status = main(path="/home/ubuntu/predictions/testpart1--gpt-4o")
     sys.exit(status)
