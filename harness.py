@@ -235,6 +235,8 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
     results = []
     cost = 0
     winner = None
+    success = False
+    attempt = 0
 
     # Do NUM_TRIES tries for each of the models, until we find a *plausible* solution
     for attempt in range(1, num_tries + 1):
@@ -249,16 +251,6 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
                 # Prepare the test command which will run the pre-existing tests
                 test_cmd = lambda: run_pre_existing_tests(entry, git_tempdir)  # noqa: E731
 
-                # Get an instance of aider
-                coder = get_coder(
-                    model,
-                    git_tempdir,
-                    chat_history_file,
-                    test_cmd,
-                    temperature,
-                    oracle_files,
-                )
-
                 def result_writer(output: dict):
                     output["gold_files"] = gold_files
                     output["gold_patch"] = entry["patch"]
@@ -271,28 +263,18 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
                     out_fname.write_text(json.dumps(output, indent=4))
 
                 run_result = entry_point(
-                    problem_statement,
-                    coder.repo_map,
-                    coder,
-                    test_cmd,
-                    result_writer,
-                    None,  # coder.main_model.name,
-                    chat_history_file,
-                    gold_files,
-                    entry["patch"],
+                    problem_statement=problem_statement,
+                    repo_path=git_tempdir,
+                    existing_test_runner=test_cmd,
+                    chat_history_file=chat_history_file,
+                    token_count=Model(model).token_count,
                 )
 
                 if run_result is None:
-                    coder.edit_outcome = False
-                    coder.lint_outcome = False
-                    coder.test_outcome = False
-                    run_failed = True
+                    success = False
                     continue
                 else:
-                    coder.edit_outcome = True
-                    coder.lint_outcome = True
-                    coder.test_outcome = True
-                    run_failed = False
+                    success = True
 
                 added_files = run_result["files"]
                 tests_passed = run_result["result"]
@@ -301,16 +283,12 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
                 dump(gold_files)
                 dump(added_files)
 
-                # Keep track of API costs
-                cost += coder.total_cost
-
+                # TODO: Keep track of API costs
                 # Get the diff between the current state and the original commit
                 print(">>>>>>>> Start diff_versus_commit <<<<<<<<")
                 model_patch = diff_versus_commit(git_tempdir, base_commit)
                 print(">>>>>>>> Finished diff_versus_commit <<<<<<<<")
                 dump(model_patch)
-
-            # TODO: catch fails of
 
             # Record the results for the logs
             result = dict(
@@ -321,13 +299,12 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
                 # For computing stats
                 model=model,
                 temperature=temperature,
-                cost=coder.total_cost,
                 added_files=added_files,
                 gold_files=gold_files,
                 edited_files=files_in_patch(model_patch),
-                edit_outcome=coder.edit_outcome,
-                lint_outcome=coder.lint_outcome,
-                test_outcome=coder.test_outcome,
+                edit_outcome=success,
+                lint_outcome=success,
+                test_outcome=success,
             )
             result["try"] = attempt  # `try` is a python keyword
             results.append(result)
@@ -336,7 +313,7 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
             dump(result)
 
             # Did we get a successful edit, lint and test? If so, we found a plausible solution!
-            if model_patch and coder.edit_outcome and coder.lint_outcome and coder.test_outcome:
+            if model_patch and success:
                 winner = result
                 break
 
@@ -593,7 +570,7 @@ if __name__ == "__main__":
     # How many attempts per model to try and find a plausible solutions?
     num_tries = 3
     # How many threads to use for attempting instances in parallel
-    threads = 4
+    threads = 1
 
     # Any predictions/ dirs provided on the command line are treated
     # as earlier, higher priority runs.  If a plausible solution was
@@ -629,7 +606,7 @@ if __name__ == "__main__":
 
     # What temperature to use during chat completions
     temperature = 0
-    prefix = "testpart1"
+    prefix = "dev1"
 
     status = main(
         prefix=prefix,
@@ -639,8 +616,8 @@ if __name__ == "__main__":
         threads=threads,
         prior_dnames=prior_dnames,
         instances=instances,
-        dataset_split="test",
-        dataset_portion=0.2,
+        dataset_split="dev",
+        dataset_portion=1,
         random_seed=3,
     )
     sys.exit(status)

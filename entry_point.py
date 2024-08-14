@@ -4,9 +4,9 @@ import sys
 import traceback
 from typing import Callable
 
-from aider.codemap.repomap import RepoMap
-from aider.coders.motleycrew_coder.motleycrew_coder import MotleyCrewCoder
 from bug_fixer import get_bug_fixer_task
+from motleycoder.codemap.file_group import FileGroup
+from motleycoder.repo import GitRepo
 from motleycrew import MotleyCrew
 from motleycrew.common import logger, configure_logging
 
@@ -62,14 +62,11 @@ class DualLogger:
 
 def entry_point(
     problem_statement: str,
-    repo_map: RepoMap,
-    coder: MotleyCrewCoder,
+    repo_path: str,
     existing_test_runner: Callable,
-    result_writer,
+    token_count: Callable,
     llm_name: str | None = None,
     chat_history_file: str | None = None,
-    gold_files: list[str] | None = None,
-    gold_patch: str | None = None,
 ):
     configure_logging(verbose=True)
 
@@ -90,15 +87,19 @@ def entry_point(
             #     print("ouch!")
 
             # Now run the bug-fixing task
+
+            repo = GitRepo(repo_path)
+            file_group = FileGroup(repo)
+
             crew = MotleyCrew()
             bug_fixer_task = get_bug_fixer_task(
-                coder,
-                None,  # output["entity"],
-                problem_statement,
-                existing_test_runner,
-                repo_map,
-                crew,
-                llm_name,
+                repo=repo,
+                file_group=file_group,
+                problem_statement=problem_statement,
+                existing_test_runner=existing_test_runner,
+                token_count=token_count,
+                crew=crew,
+                llm_name=llm_name,
             )
             result = crew.run()
             output2 = bug_fixer_task.output
@@ -111,10 +112,10 @@ def entry_point(
             # result_writer(output)
 
             print("yay!")
-            return {"files": coder.aider_edited_files, "result": output2}
+            return {"files": file_group.edited_files, "result": output2}
         except Exception as e:
             logger.error(traceback.format_exc())
-            # raise e
+            raise e
             return None
 
 
