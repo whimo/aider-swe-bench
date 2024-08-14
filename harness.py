@@ -570,7 +570,7 @@ if __name__ == "__main__":
     # How many attempts per model to try and find a plausible solutions?
     num_tries = 3
     # How many threads to use for attempting instances in parallel
-    threads = 1
+    threads = 5
 
     # Any predictions/ dirs provided on the command line are treated
     # as earlier, higher priority runs.  If a plausible solution was
@@ -602,7 +602,6 @@ if __name__ == "__main__":
         # "sqlfluff__sqlfluff-1625",
         # "pvlib__pvlib-python-1606",
         # "marshmallow-code__marshmallow-1359",
-        "sqlfluff__sqlfluff-2419"
     ]
 
     # What temperature to use during chat completions

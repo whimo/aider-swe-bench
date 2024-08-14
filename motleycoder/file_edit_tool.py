@@ -103,7 +103,7 @@ class FileEditTool(MotleyTool):
             # self.git_repo.commit_changes(f"Edit file {file_path}")
         except Exception as err:
             logger.warning("Exception while updating file:")
-            logger.warning(str(err), strip=False)
+            logger.warning(str(err))
 
             traceback.print_exc()
             return str(err)
