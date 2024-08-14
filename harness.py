@@ -602,11 +602,12 @@ if __name__ == "__main__":
         # "sqlfluff__sqlfluff-1625",
         # "pvlib__pvlib-python-1606",
         # "marshmallow-code__marshmallow-1359",
+        "sqlfluff__sqlfluff-2419"
     ]
 
     # What temperature to use during chat completions
     temperature = 0
-    prefix = "dev1"
+    prefix = "newdev1"
 
     status = main(
         prefix=prefix,

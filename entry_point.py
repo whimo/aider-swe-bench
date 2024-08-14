@@ -112,7 +112,7 @@ def entry_point(
             # result_writer(output)
 
             print("yay!")
-            return {"files": file_group.edited_files, "result": output2}
+            return {"files": list(file_group.edited_files), "result": output2}
         except Exception as e:
             logger.error(traceback.format_exc())
             raise e
