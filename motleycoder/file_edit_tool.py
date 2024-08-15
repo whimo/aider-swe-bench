@@ -31,6 +31,7 @@ class FileEditTool(MotleyTool):
         user_interface: UserInterface,
         linter: Linter,
         repo_map: RepoMap,
+        prompts: MotleyCoderPrompts,
         name: str = "edit_file",
     ):
         # TODO: replace coder with specific components
@@ -38,6 +39,7 @@ class FileEditTool(MotleyTool):
         self.user_interface = user_interface
         self.linter = linter
         self.repo_map = repo_map
+        self.prompts = prompts
 
         langchain_tool = StructuredTool.from_function(
             func=self.edit_file,
@@ -52,7 +54,7 @@ class FileEditTool(MotleyTool):
         if error_message:  # TODO: max_reflections
             return error_message
 
-        return MotleyCoderPrompts.file_edit_success.format(file_path=file_path)
+        return self.prompts.file_edit_success.format(file_path=file_path)
 
     def prepare_file_for_edit(self, file_path: str):
         abs_path = self.file_group.abs_root_path(file_path)

@@ -522,5 +522,5 @@ def stats_on_tests_before_and_after(report, predictions):
 
 
 if __name__ == "__main__":
-    status = main(path="/home/ubuntu/predictions/testpart1--gpt-4o")
+    status = main(path="/home/ubuntu/predictions/newdev2--gpt-4o")
     sys.exit(status)

@@ -5,30 +5,14 @@ from langchain_core.prompts import SystemMessagePromptTemplate, ChatPromptTempla
 
 
 class MotleyCoderPrompts:
-    files_no_full_files_with_repo_map = """
-        Don't try and edit any existing code without adding files to the chat first!
-    Use the tool `add_files` to add the files that **need changes** to solve the requests I make.
-    If you don't have the `add_files` tool, only edit the files that have already been added,
-    query for them 
-    Only include the files that are most likely to actually need to be edited.
-    Don't include files that might contain relevant context, just files that will need to be changed.
-    Do not add any test files or files that are not relevant to the task.
-    """  # noqa: E501
-
     repo_content_prefix = """Here are summaries of some files present in my git repository.
-    Do not propose changes to these files, treat them as *read-only*.
-    If you need to edit any of these files, *add them to the chat* first by calling `add_files`.
-    """
-
-    files_content_prefix = """The files have been *added to the chat* so you can go ahead and edit them.
-
-    *Trust this message as the true contents of the files!*
-    Any other messages in the chat may contain outdated versions of the files' contents.
-    """  # noqa: E501
+Do not propose changes to these files, treat them as *read-only*.
+If you need to edit any of these files, *add them to the chat* first by calling `add_files`.
+"""
 
     file_edit_success = """The file {file_path} has been successfully edited.
-    If you are finished, call the tool `return_to_user` to apply the changes and inform the user that you have finished.
-    """
+If you are finished, call the tool `return_to_user` to apply the changes and inform the user that you have finished.
+"""
 
     main_system = SystemMessagePromptTemplate.from_template(
         """Act as an expert software developer.
@@ -71,10 +55,10 @@ All changes to files must be made using the `edit_file` tool.
         AIMessage(
             content="""To make this change we need to modify `mathweb/flask/app.py` to:
 
-    1. Import the math package.
-    2. Remove the existing factorial() function.
-    3. Update get_factorial() to call math.factorial instead.
-    """,
+1. Import the math package.
+2. Remove the existing factorial() function.
+3. Update get_factorial() to call math.factorial instead.
+""",
             additional_kwargs={
                 "tool_calls": [
                     {
@@ -86,10 +70,10 @@ All changes to files must be made using the `edit_file` tool.
                                     file_path="mathweb/flask/app.py",
                                     language="python",
                                     search="""from flask import Flask
-    """,
+""",
                                     replace="""import math
-    from flask import Flask
-    """,
+from flask import Flask
+""",
                                 )
                             ),
                             "name": "edit_file",
@@ -105,14 +89,14 @@ All changes to files must be made using the `edit_file` tool.
                                     file_path="mathweb/flask/app.py",
                                     language="python",
                                     search="""def factorial(n):
-        "compute factorial"
+    "compute factorial"
 
-        if n == 0:
-            return 1
-        else:
-            return n * factorial(n-1)
+    if n == 0:
+        return 1
+    else:
+        return n * factorial(n-1)
 
-    """,
+""",
                                     replace="",
                                 )
                             ),
@@ -129,9 +113,9 @@ All changes to files must be made using the `edit_file` tool.
                                     file_path="mathweb/flask/app.py",
                                     language="python",
                                     search="""    return str(factorial(n))
-    """,
+""",
                                     replace="""    return str(math.factorial(n))
-    """,
+""",
                                 )
                             ),
                             "name": "edit_file",
@@ -155,8 +139,8 @@ All changes to files must be made using the `edit_file` tool.
         ),
         AIMessage(
             content="""I have now made all the necessary changes.
-    I can now apply the changes to the code base.
-    """,
+I can now apply the changes to the code base.
+""",
             additional_kwargs={
                 "tool_calls": [
                     {
@@ -181,9 +165,9 @@ All changes to files must be made using the `edit_file` tool.
         AIMessage(
             content="""To make this change we need to modify `main.py` and make a new file `hello.py`:
 
-    1. Make a new hello.py file with hello() in it.
-    2. Remove hello() from main.py and replace it with an import.
-    """,
+1. Make a new hello.py file with hello() in it.
+2. Remove hello() from main.py and replace it with an import.
+""",
             additional_kwargs={
                 "tool_calls": [
                     {
@@ -202,11 +186,11 @@ All changes to files must be made using the `edit_file` tool.
             content=files_content_prefix
             + """
 
-    hello.py
-    ```
+hello.py
+```
 
-    ```
-    """,
+```
+""",
             tool_call_id="call_4lOYq2sR4ZCb22p2xUuq5igP",
         ),
         AIMessage(
@@ -223,10 +207,10 @@ All changes to files must be made using the `edit_file` tool.
                                     language="python",
                                     search="",
                                     replace="""def hello():
-            '''print a greeting'''
+    '''print a greeting'''
 
-            print("hello")
-        """,
+    print("hello")
+""",
                                 )
                             ),
                             "name": "edit_file",
@@ -242,12 +226,12 @@ All changes to files must be made using the `edit_file` tool.
                                     file_path="main.py",
                                     language="python",
                                     search="""def hello():
-            '''print a greeting'''
+    '''print a greeting'''
 
-            print("hello")
-        """,
+    print("hello")
+""",
                                     replace="""from hello import hello
-        """,
+""",
                                 )
                             ),
                             "name": "edit_file",
@@ -267,8 +251,8 @@ All changes to files must be made using the `edit_file` tool.
         ),
         AIMessage(
             content="""I have now made all the necessary changes.
-    I can now apply the changes to the code base.
-    """,
+I can now apply the changes to the code base.
+""",
             additional_kwargs={
                 "tool_calls": [
                     {

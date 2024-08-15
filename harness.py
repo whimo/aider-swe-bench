@@ -606,7 +606,7 @@ if __name__ == "__main__":
 
     # What temperature to use during chat completions
     temperature = 0
-    prefix = "newdev1"
+    prefix = "newdev2"
 
     status = main(
         prefix=prefix,

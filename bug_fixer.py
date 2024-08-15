@@ -23,6 +23,7 @@ def get_bug_fixer_task(
     file_group: FileGroup,
     problem_statement: str,
     existing_test_runner: Callable,
+    prompts: MotleyCoderPrompts,
     token_count: Callable,
     crew: MotleyCrew,
     llm_name: str | None = None,
@@ -38,7 +39,7 @@ def get_bug_fixer_task(
     repo_map = RepoMap(
         root=repo.root,
         token_count=token_count,
-        repo_content_prefix=MotleyCoderPrompts.repo_content_prefix,
+        repo_content_prefix=prompts.repo_content_prefix,
         file_group=file_group,
         cache_graphs=True,
     )
@@ -71,7 +72,11 @@ NEVER call the inspect_entity tool more than 5 times.
 
     inspect_entity_tool = InspectEntityTool(repo_map)
     file_edit_tool = FileEditTool(
-        file_group=file_group, user_interface=user_interface, linter=linter, repo_map=repo_map
+        file_group=file_group,
+        user_interface=user_interface,
+        linter=linter,
+        repo_map=repo_map,
+        prompts=prompts,
     )
 
     # TODO: have the output handler write a test for the issue and use it to check the fix?
@@ -95,7 +100,7 @@ NEVER call the inspect_entity tool more than 5 times.
     bug_fixer = ReActToolCallingMotleyAgent(
         name="bug_fixer",
         tools=tools,
-        prompt_prefix=MotleyCoderPrompts().prompt_template.partial(
+        prompt_prefix=prompts.prompt_template.partial(
             tools=render_text_description(tools)
         ),
         output_handler=BugFixerOutputHandler(max_iterations=3),

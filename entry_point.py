@@ -4,8 +4,11 @@ import sys
 import traceback
 from typing import Callable
 
+from langchain_core.prompts import SystemMessagePromptTemplate
+
 from bug_fixer import get_bug_fixer_task
 from motleycoder.codemap.file_group import FileGroup
+from motleycoder.prompts import MotleyCoderPrompts
 from motleycoder.repo import GitRepo
 from motleycrew import MotleyCrew
 from motleycrew.common import logger, configure_logging
@@ -19,7 +22,7 @@ class DualLogger:
         self._original_stderr = sys.stderr
 
     def __enter__(self):
-        self._file = open(self.file_path, "w")
+        self._file = open(self.file_path, "a")
 
         # Redirect stdout and stderr to the custom stream
         sys.stdout = self
@@ -60,6 +63,44 @@ class DualLogger:
         self._file.flush()
 
 
+class PromptsForBenchmark(MotleyCoderPrompts):
+    repo_content_prefix = """Here are summaries of some files present in my git repository.
+"""
+
+    file_edit_success = """The file {file_path} has been successfully edited.
+If you are finished, call the tool `return_to_user` to apply the changes and inform the user that you have finished.
+"""
+
+    main_system = SystemMessagePromptTemplate.from_template(
+        """Act as an expert software developer.
+Always use best practices when coding.
+Respect and use existing conventions, libraries, etc that are already present in the code base.
+
+You are diligent and tireless!
+You NEVER leave comments describing code without implementing it!
+You always COMPLETELY IMPLEMENT the needed code!
+
+Take requests for changes to the supplied code.
+If the request is ambiguous, ask questions using the tool `return_to_user`.
+
+Always reply to the user in the same language they are using.
+
+Once you understand the request you MUST:
+1. Think step-by-step and explain the needed changes with a numbered list of short sentences.
+2. Make the changes to the files by calling the tool `edit_file` with the *SEARCH/REPLACE arguments* for each change. 
+You can keep calling the tool with new *SEARCH/REPLACE arguments* until you have made all the necessary changes. 
+ONLY EVER RETURN CODE IN THE ARGUMENTS OF THE `edit_file` TOOL CALL!
+3. After making all the necessary changes, you MUST call the tool `return_to_user` to apply the changes and to inform 
+the user that you have finished. You can't call any tools after this step.
+
+You have access to the following tools:
+{tools}
+
+All changes to files must be made using the `edit_file` tool.
+"""
+    )
+
+
 def entry_point(
     problem_statement: str,
     repo_path: str,
@@ -97,6 +138,7 @@ def entry_point(
                 file_group=file_group,
                 problem_statement=problem_statement,
                 existing_test_runner=existing_test_runner,
+                prompts=PromptsForBenchmark(),
                 token_count=token_count,
                 crew=crew,
                 llm_name=llm_name,

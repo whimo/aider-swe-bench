@@ -7,15 +7,15 @@ from typing import List, Set
 from langchain_core.pydantic_v1 import BaseModel, Field
 from tqdm import tqdm
 
-from aider.codemap.file_group import (
+from .file_group import (
     FileGroup,
     get_ident_mentions,
     get_ident_filename_matches,
 )
-from aider.codemap.graph import TagGraph, build_tag_graph, only_defs  # noqa: F402
-from aider.codemap.parse import get_tags_raw, read_text  # noqa: F402
-from aider.codemap.rank import rank_tags_new, rank_tags  # noqa: F402
-from aider.codemap.render import RenderCode
+from .graph import TagGraph, build_tag_graph, only_defs  # noqa: F402
+from .parse import get_tags_raw, read_text  # noqa: F402
+from .rank import rank_tags_new, rank_tags  # noqa: F402
+from .render import RenderCode
 
 # tree_sitter is throwing a FutureWarning
 warnings.simplefilter("ignore", category=FutureWarning)
@@ -114,10 +114,12 @@ class RepoMap:
 
         return repo_content
 
-    def get_tag_graph(self, abs_fnames: List[str] | None = None) -> TagGraph:
+    def get_tag_graph(
+        self, abs_fnames: List[str] | None = None, with_tests: bool = False
+    ) -> TagGraph:
         if not abs_fnames:
             abs_fnames = self.file_group.get_all_filenames()
-        clean_fnames = self.file_group.validate_fnames(abs_fnames)
+        clean_fnames = self.file_group.validate_fnames(abs_fnames, with_tests=with_tests)
 
         if self.tag_graphs is not None:
             for files, graph in self.tag_graphs.items():
@@ -144,8 +146,6 @@ class RepoMap:
             assert isinstance(data, list)
             return code, data
 
-        # return get_tags_raw_function(fname)
-        # # TODO: resume caching
         return self.file_group.cached_function_call(fname, get_tags_raw_function)
 
     def get_ranked_tags(

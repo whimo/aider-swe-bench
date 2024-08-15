@@ -1,19 +1,12 @@
 import os.path
-from typing import TYPE_CHECKING
+from collections import deque
+from typing import Optional
 
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.tools import StructuredTool
-from typing import List, Optional
 
-from motleycrew.common import logger
 from motleycrew.tools import MotleyTool
-
-from aider.codemap.repomap import RepoMap
-from aider.codemap.render import RenderCode
-from aider.codemap.tag import Tag
-
-if TYPE_CHECKING:
-    from .motleycrew_coder import MotleyCrewCoder
+from .codemap.repomap import RepoMap
 
 
 class InspectObjectToolInput(BaseModel):
@@ -30,12 +23,14 @@ class InspectEntityTool(MotleyTool):
         show_other_files: bool = False,
         max_lines_long=200,
         max_lines_short=25,
+        block_identical_calls=2,
     ):
         self.repo_map = repo_map
         self.show_other_files = show_other_files
         self.max_lines_long = max_lines_long
         self.max_lines_short = max_lines_short
-        self.requested_tags = set()
+
+        self.requested_tags = deque(maxlen=block_identical_calls)
 
         langchain_tool = StructuredTool.from_function(
             func=self.get_object_summary,
@@ -43,7 +38,7 @@ class InspectEntityTool(MotleyTool):
             description=""""Get the code of the entity with a given name, 
             including summary of the entities it references. Valid entities 
             are function names, class names, method names (prefix them by method name to disambiguate, like "Foo.bar")
-            
+
             ONLY supply the file name/relative path if you need it to disambiguate the entity name,
             or if you want to inspect a whole file; in all other cases, just supply the entity name.
             You can also supply a partial file or directory name to get all files whose relative paths
@@ -63,12 +58,15 @@ class InspectEntityTool(MotleyTool):
         if entity_name is not None:
             entity_name = entity_name.replace("()", "")
 
-        # if (entity_name, file_name) in self.requested_tags:
-        #     return "You've already requested that one!"
-        # else:
-        #     self.requested_tags.add((entity_name, file_name))
+        if (entity_name, file_name) in self.requested_tags:
+            return (
+                "You've already requested this entity recently. "
+                "You MUST use existing information or request a different entity."
+            )
+        else:
+            self.requested_tags.append((entity_name, file_name))
 
-        tag_graph = self.repo_map.get_tag_graph()
+        tag_graph = self.repo_map.get_tag_graph(with_tests=True)
 
         out = ""
 
@@ -81,7 +79,11 @@ class InspectEntityTool(MotleyTool):
 
         if not re_tags:  # maybe it was an explicit import?
             if entity_name is not None:
-                out += f"Definition of entity {entity_name} not found in the repo"
+                out += (
+                    f"Definition of entity {entity_name} not found in the repo. "
+                    f"You can specify the entity name more broadly or omit it "
+                    f"for reading the whole file."
+                )
                 if file_name is None or self.to_dir(file_name) is None:
                     return out  # Absolutely no directories to work with
                 else:
@@ -110,7 +112,17 @@ class InspectEntityTool(MotleyTool):
             if len(repr.split("\n")) < self.max_lines_long:
                 out += repr
             else:
-                out += tag_graph.code_renderer.to_tree(re_tags)
+                repr = tag_graph.code_renderer.to_tree(re_tags)
+                if len(repr.split("\n")) < self.max_lines_long:
+                    out += repr
+                else:
+                    fnames = sorted(list(set(t.rel_fname for t in re_tags)))
+
+                    out += (
+                        "There are too many matches for the given query in the repo."
+                        "Here are the files that match the query:\n"
+                    )
+                    out += "\n".join(fnames)
 
             candidate_dirs = list(set([self.to_dir(t.fname) for t in re_tags]))
 
