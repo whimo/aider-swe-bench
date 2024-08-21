@@ -54,13 +54,15 @@ class DualLogger:
 
     def write(self, message):
         # Write to the original stdout/stderr and the file, but only non-empty messages
-        if message.strip():
+        if message.strip() and not self._file.closed:
             self._original_stdout.write(message)
             self._file.write(message)
+            self.flush()
 
     def flush(self):
-        self._original_stdout.flush()
-        self._file.flush()
+        if not self._file.closed:
+            self._original_stdout.flush()
+            self._file.flush()
 
 
 class PromptsForBenchmark(MotleyCoderPrompts):
@@ -105,7 +107,6 @@ def entry_point(
     problem_statement: str,
     repo_path: str,
     existing_test_runner: Callable,
-    token_count: Callable,
     llm_name: str | None = None,
     chat_history_file: str | None = None,
 ):
@@ -139,10 +140,12 @@ def entry_point(
                 problem_statement=problem_statement,
                 existing_test_runner=existing_test_runner,
                 prompts=PromptsForBenchmark(),
-                token_count=token_count,
                 crew=crew,
                 llm_name=llm_name,
             )
+
+            print(bug_fixer_task.description)
+
             result = crew.run()
             output2 = bug_fixer_task.output
             if output2 != "Tests passed!":
@@ -157,7 +160,7 @@ def entry_point(
             return {"files": list(file_group.edited_files), "result": output2}
         except Exception as e:
             logger.error(traceback.format_exc())
-            raise e
+            # raise e
             return None
 
 

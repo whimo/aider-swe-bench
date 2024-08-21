@@ -1,36 +1,20 @@
 #!/usr/bin/env python
 
-import asyncio
 import json
 import random
 import sys
-import tempfile
+import time
 from collections import defaultdict
 from pathlib import Path
 
+import docker
+
 from dump import dump
-from swebench_docker.constants import MAP_REPO_TO_TEST_FRAMEWORK, MAP_VERSION_TO_INSTALL
-from swebench_docker.run_docker import run_docker_evaluation
-from swebench_docker.utils import get_test_directives
+from swebench.harness.constants import RUN_EVALUATION_LOG_DIR, MAP_REPO_VERSION_TO_SPECS
+from swebench.harness.docker_build import build_env_images
+from swebench.harness.run_evaluation import run_instance
+from swebench.harness.test_spec import make_test_spec
 from utils import get_dataset, get_devin_instance_ids, load_predictions  # noqa: F401
-
-
-# clipped from `run_docker_evaluation()`
-def get_docker_image(task_instance: dict, namespace: str = "aorwall"):
-    repo_name = task_instance["repo"].replace("/", "_")
-
-    specifications = MAP_VERSION_TO_INSTALL[task_instance["repo"]][task_instance["version"]]
-    image_prefix = "swe-bench"
-
-    if specifications.get("instance_image", False):
-        docker_image = (
-            f"{namespace}/{image_prefix}-{repo_name}-instance:{task_instance['instance_id']}"
-        )
-    else:
-        docker_image = f"{namespace}/{image_prefix}-{repo_name}-testbed:{task_instance['version']}"
-
-    return docker_image
-
 
 # A no-op patch which creates an empty file is used to stand in for
 # the `model_patch` and/or `test_patch` when running SWE Bench tests
@@ -87,10 +71,6 @@ def run_tests(entry, model_patch=None, use_test_patch=False, model_name_or_path=
     """
     instance_id = entry["instance_id"]
 
-    test_type = MAP_REPO_TO_TEST_FRAMEWORK[entry["repo"]]
-    test_directives = get_test_directives(entry)
-    test_cmd = f"{test_type} {' '.join(test_directives)}"
-
     # Use a no-op patch if no model_patch is provided
     if not model_patch:
         model_patch = NOOP_PATCH.format(nonce="model_patch")
@@ -111,37 +91,63 @@ def run_tests(entry, model_patch=None, use_test_patch=False, model_name_or_path=
         print(model_patch)
         print("=" * 30)
 
-    entry_instance = {
-        "repo": entry["repo"],
-        "version": entry["version"],
-        "base_commit": entry["base_commit"],
-        "instance_id": entry["instance_id"],
-        "model_name_or_path": model_name_or_path,
+    entry = entry.copy()
+    # entry["test_patch"] = test_patch
+    entry["patch"] = None
+    entry["hints_text"] = None
+    entry["do_apply_test_patch"] = use_test_patch
+
+    test_spec = make_test_spec(entry)
+
+    pred = {
         "model_patch": model_patch,
-        "test_patch": test_patch,
-        "test_directives": test_directives,
-        "test_cmd": test_cmd,
+        "model_name_or_path": model_name_or_path,
+        "instance_id": instance_id,
     }
 
-    namespace = "aorwall"
-    with tempfile.TemporaryDirectory() as log_dir:  # dir="/mnt/aider"
-        timeout = 60
-        log_suffix = ""
+    client = docker.from_env()
+    run_id = f"test.{instance_id}.{model_name_or_path}.{int(time.time())}"
 
-        asyncio.run(run_docker_evaluation(entry_instance, namespace, log_dir, timeout, log_suffix))
+    timeout = 1800
 
-        log_fname = Path(log_dir) / f"{instance_id}.{model_name_or_path}.eval.log"
-        if not log_fname.exists():
-            return None, ""
+    build_env_images(client, [entry])
+    _, report = run_instance(
+        test_spec=test_spec,
+        pred=pred,
+        rm_image=False,
+        force_rebuild=False,
+        client=client,
+        run_id=run_id,
+        timeout=timeout,
+    )
 
-        log_text = log_fname.read_text()
-        log_lines = log_text.splitlines()
-        log_lines = [line for line in log_lines if line.startswith(">>>>")]
-        print("\n".join(log_lines))
+    log_dir = RUN_EVALUATION_LOG_DIR / run_id / model_name_or_path / instance_id
+    test_output_fname = Path(log_dir) / f"test_output.txt"
+    if not test_output_fname.exists():
+        return None, ""
 
-        passed = ">>>>> All Tests Passed" in log_text
+    log_text = test_output_fname.read_text()
+    log_lines = log_text.splitlines()
+    assert log_lines
 
-        return passed, log_text
+    test_command = MAP_REPO_VERSION_TO_SPECS[entry["repo"]][entry["version"]]["test_cmd"]
+    for i, line in enumerate(log_lines):
+        if test_command in line:
+            break
+
+    if len(log_lines) - i < 8:
+        for i, line in enumerate(log_lines):
+            if "test session start" in line.lower():
+                break
+
+    if len(log_lines) - i < 8:
+        i = 0
+
+    test_output = "\n".join(log_lines[i:])
+    print(test_output)
+
+    passed = report.get(instance_id, {}).get("exit_code") == 0
+    return passed, test_output
 
 
 def main_check_docker_images():

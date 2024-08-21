@@ -4,12 +4,12 @@ from langchain_core.tools import render_text_description
 
 from motleycoder.codemap.file_group import FileGroup
 from motleycoder.codemap.repomap import RepoMap
-from motleycoder.file_edit_tool import FileEditTool
-from motleycoder.inspect_entity_tool import InspectEntityTool
 from motleycoder.linter import Linter
 from motleycoder.prompts import MotleyCoderPrompts
 from motleycoder.repo import GitRepo
-from motleycoder.user_interatction import UserInterface
+from motleycoder.tools.file_edit_tool import FileEditTool
+from motleycoder.tools.inspect_entity_tool import InspectEntityTool
+from motleycoder.user_interface import UserInterface
 from motleycrew import MotleyCrew
 from motleycrew.agents import MotleyOutputHandler
 from motleycrew.agents.langchain.tool_calling_react import ReActToolCallingMotleyAgent
@@ -24,7 +24,6 @@ def get_bug_fixer_task(
     problem_statement: str,
     existing_test_runner: Callable,
     prompts: MotleyCoderPrompts,
-    token_count: Callable,
     crew: MotleyCrew,
     llm_name: str | None = None,
 ) -> SimpleTask:
@@ -38,10 +37,11 @@ def get_bug_fixer_task(
 
     repo_map = RepoMap(
         root=repo.root,
-        token_count=token_count,
+        llm_name=llm_name,
         repo_content_prefix=prompts.repo_content_prefix,
         file_group=file_group,
         cache_graphs=True,
+        use_old_ranking=True,
     )
 
     repo_map_str = repo_map.repo_map_from_message(problem_statement, llm=llm)
@@ -70,7 +70,7 @@ NEVER call the inspect_entity tool more than 5 times.
     user_interface = UserInterface(yes=True)
     linter = Linter()
 
-    inspect_entity_tool = InspectEntityTool(repo_map)
+    inspect_entity_tool = InspectEntityTool(repo_map=repo_map)
     file_edit_tool = FileEditTool(
         file_group=file_group,
         user_interface=user_interface,
@@ -100,9 +100,7 @@ NEVER call the inspect_entity tool more than 5 times.
     bug_fixer = ReActToolCallingMotleyAgent(
         name="bug_fixer",
         tools=tools,
-        prompt_prefix=prompts.prompt_template.partial(
-            tools=render_text_description(tools)
-        ),
+        prompt_prefix=prompts.prompt_template.partial(tools=render_text_description(tools)),
         output_handler=BugFixerOutputHandler(max_iterations=3),
         chat_history=True,
         verbose=True,

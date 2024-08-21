@@ -10,28 +10,12 @@ from pathlib import Path
 
 from joblib import Parallel, delayed
 
-USE_ORIG_AIDER = False
-
-if USE_ORIG_AIDER:
-    from aider.coders import Coder
-
-    construct_coder = Coder.create
-
-else:
-    from aider.coders import MotleyCrewCoder
-
-    construct_coder = MotleyCrewCoder
-
-from aider.io import InputOutput
-from aider.models import Model, register_litellm_models
-
-from entry_point import entry_point
-
 from dump import dump
+from entry_point import entry_point
 from tests import run_tests
+from utils import get_devin_instance_ids, get_plausible, load_predictions, pick_winner
 from utils import get_full_dataset  # noqa: F401
 from utils import get_lite_dataset  # noqa: F401
-from utils import get_devin_instance_ids, get_plausible, load_predictions, pick_winner
 
 REPOS_DNAME = Path("repos")
 CHAT_LOGS_DNAME = Path("chat-logs")
@@ -149,57 +133,6 @@ def run_pre_existing_tests(entry, git_dname):
     return output
 
 
-def get_coder(model, git_dname, chat_history_file, test_cmd, temperature, oracle_files=None):
-    """
-    Get an instance of aider to work with the given LLM `model` at `temperature`
-    on the code in `git_dname`. Will store the markdown chat logs in
-    the `chat_history_file`. Tells aider it can use the `test_cmd` to
-    run tests after the LLM edits files.
-
-    If `oracle_files` are provided, they are added to the aider chat automatically.
-    """
-    if oracle_files and git_dname:
-        oracle_files = [Path(git_dname) / fname for fname in oracle_files]
-
-    model = Model(model)
-
-    io = InputOutput(
-        yes=True,  # Say yes to every suggestion aider makes
-        chat_history_file=None,  # Log the chat here
-        input_history_file="/dev/null",  # Don't log the "user input"
-    )
-
-    dump(git_dname)
-
-    coder = construct_coder(
-        main_model=model,
-        io=io,
-        git_dname=git_dname,
-        map_tokens=2048,  # Use 2k tokens for the repo map
-        stream=False,
-        auto_commits=False,  # Don't bother git committing changes
-        fnames=oracle_files,
-        auto_test=True,  # Automatically run the test_cmd after making changes
-        test_cmd=test_cmd,
-        # verbose=True,
-        # edit_format="udiff",
-        max_chat_history_tokens=8 * 1024,
-    )
-    coder.temperature = temperature
-
-    # Take at most 4 steps before giving up.
-    # Usually set to 5, but this reduces API costs.
-    coder.max_reflections = 4
-
-    # Add announcement lines to the markdown chat log
-    coder.show_announcements()
-
-    # messages = coder.format_messages()
-    # utils.show_messages(messages)
-
-    return coder
-
-
 def process_one_instance(entry, num_tries, models, temperature, model_name_or_path, out_dname):
     """Process one `entry` from SWE Bench using the LLM `models` at the
     given `temperature`.  Set `model_name_or_path` in the result json.
@@ -267,7 +200,7 @@ def process_one_instance(entry, num_tries, models, temperature, model_name_or_pa
                     repo_path=git_tempdir,
                     existing_test_runner=test_cmd,
                     chat_history_file=chat_history_file,
-                    token_count=Model(model).token_count,
+                    llm_name=model,
                 )
 
                 if run_result is None:
@@ -441,7 +374,7 @@ def process_instances(
 
     print()
     print("press enter...")
-    input()
+    # input()
 
     if not CHAT_LOGS_DNAME.exists():
         CHAT_LOGS_DNAME.mkdir()
@@ -570,7 +503,7 @@ if __name__ == "__main__":
     # How many attempts per model to try and find a plausible solutions?
     num_tries = 3
     # How many threads to use for attempting instances in parallel
-    threads = 5
+    threads = 12
 
     # Any predictions/ dirs provided on the command line are treated
     # as earlier, higher priority runs.  If a plausible solution was
@@ -579,35 +512,92 @@ if __name__ == "__main__":
     prior_dnames = sys.argv[1:]
 
     instances = [
-        # "astropy__astropy-14365",
-        # "django__django-11049",
-        # "django__django-12983",
-        # "django__django-15781",
-        # "matplotlib__matplotlib-23476",
-        # "matplotlib__matplotlib-24334",
-        # "mwaskom__seaborn-3010",
-        # "psf__requests-863",
-        # "pydata__xarray-4248",
-        # "pytest-dev__pytest-5103",
-        # "pytest-dev__pytest-11143",
-        # "scikit-learn__scikit-learn-13584",
-        # "scikit-learn__scikit-learn-25500",
-        # "sphinx-doc__sphinx-8273",
-        # "sphinx-doc__sphinx-8282",
-        # "sympy__sympy-13146",
-        # "sympy__sympy-13773",
-        # "sympy__sympy-24066",
-        # "pylint-dev__astroid-1333",
-        # "pyvista__pyvista-4315",
-        # "sqlfluff__sqlfluff-1625",
-        # "pvlib__pvlib-python-1606",
-        # "marshmallow-code__marshmallow-1359",
+        "sympy__sympy-23117",
+        "django__django-13315",
+        "mwaskom__seaborn-3010",
+        "django__django-14382",
+        "django__django-15789",
+        "django__django-14999",
+        "django__django-14915",
+        "django__django-16139",
+        "django__django-16255",
+        "scikit-learn__scikit-learn-13584",
+        "django__django-11583",
+        "sympy__sympy-14774",
+        "django__django-13768",
+        "django__django-12286",
+        "django__django-13658",
+        "django__django-14752",
+        "django__django-16527",
+        "django__django-16379",
+        "pytest-dev__pytest-11143",
+        "psf__requests-863",
+        "django__django-11422",
+        "django__django-13447",
+        "sympy__sympy-24213",
+        "sympy__sympy-13647",
+        "scikit-learn__scikit-learn-10297",
+        "django__django-14016",
+        "django__django-16041",
+        "sympy__sympy-13031",
+        "sympy__sympy-17655",
+        "sympy__sympy-24152",
+        "django__django-11179",
+        "matplotlib__matplotlib-23562",
+        "scikit-learn__scikit-learn-15535",
+        "scikit-learn__scikit-learn-13241",
+        "sympy__sympy-20212",
+        "psf__requests-2317",
+        "pytest-dev__pytest-7373",
+        "scikit-learn__scikit-learn-13496",
+        "django__django-12453",
+        "django__django-16046",
+        "scikit-learn__scikit-learn-11281",
+        "pydata__xarray-5131",
+        "sympy__sympy-18621",
+        "pytest-dev__pytest-7432",
+        "django__django-12983",
+        "django__django-17051",
+        "matplotlib__matplotlib-23964",
+        "sympy__sympy-21055",
+        "sympy__sympy-15678",
+        "pytest-dev__pytest-7490",
+        "django__django-15814",
+        "sympy__sympy-13480",
+        "scikit-learn__scikit-learn-13779",
+        "django__django-13158",
+        "pytest-dev__pytest-5227",
+        "django__django-13401",
+        "psf__requests-2674",
+        "django__django-11099",
+        "sympy__sympy-13471",
+        "scikit-learn__scikit-learn-14894",
+        "matplotlib__matplotlib-26020",
+        "django__django-13933",
+        "sympy__sympy-22714",
+        "django__django-12708",
+        "scikit-learn__scikit-learn-13439",
+        "django__django-14855",
+        "django__django-11133",
+        "django__django-13590",
+        "pytest-dev__pytest-5692",
+        "django__django-12125",
+        "scikit-learn__scikit-learn-25570",
+        "matplotlib__matplotlib-23913",
+        "sympy__sympy-18532",
+        "sphinx-doc__sphinx-8713",
+        "sphinx-doc__sphinx-8721",
+        "django__django-11039",
+        "django__django-13710",
+        "django__django-11049",
+        "django__django-14608",
     ]
+
+    # instances = ["pytest-dev__pytest-7432", "scikit-learn__scikit-learn-14894"]
 
     # What temperature to use during chat completions
     temperature = 0
-    prefix = "newdev2"
-
+    prefix = "p6"
     status = main(
         prefix=prefix,
         models=models,
@@ -616,8 +606,8 @@ if __name__ == "__main__":
         threads=threads,
         prior_dnames=prior_dnames,
         instances=instances,
-        dataset_split="dev",
-        dataset_portion=1,
+        dataset_split="test",
+        dataset_portion=0.2,
         random_seed=3,
     )
     sys.exit(status)
